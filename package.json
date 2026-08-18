@@ -5,10 +5,20 @@
   "description": "Route Wispr Flow dictation into PiKVM Paste-as-Keys.",
   "scripts": {
     "test": "node --test",
-    "package": "bash scripts/package.sh"
+    "package": "bash scripts/package.sh",
+    "rulesync:install": "rulesync install --config rulesync.jsonc --frozen",
+    "rulesync:doctor": "rulesync doctor --config rulesync.jsonc --strict",
+    "rulesync:dry-run": "rulesync generate --config rulesync.jsonc --input-root . --output-roots . --dry-run",
+    "rulesync:generate": "rulesync generate --config rulesync.jsonc --input-root . --output-roots .",
+    "rulesync:check": "rulesync generate --config rulesync.jsonc --input-root . --output-roots . --check",
+    "rulesync:verify": "npm run rulesync:install && npm run rulesync:doctor && npm run rulesync:check",
+    "verify": "npm test && npm run package && npm run rulesync:verify"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "rulesync": "16.9.1"
+  }
 }

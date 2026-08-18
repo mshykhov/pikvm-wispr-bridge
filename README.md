@@ -112,7 +112,8 @@ The target OS must use the matching active layout:
 
 PiKVM cannot inspect or change the target OS layout. This extension deliberately
 does not try to change it. Mixed-language output therefore depends on what the
-active target layout can type. See [docs/LAYOUTS.md](docs/LAYOUTS.md).
+active target layout can type. See
+[keyboard layout reference](docs/reference/layouts.md).
 
 ## Security and privacy
 
@@ -130,14 +131,35 @@ See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md).
 
 ## Development
 
-Requirements: Node.js 20+ and `zip`.
+Requirements: Node.js 22+ and `zip`.
 
 ```bash
+npm ci
 npm test
 npm run package
+npm run verify
 ```
 
 The packaged extension is written to `dist/pikvm-wispr-bridge.zip`.
+
+## Documentation
+
+Start with the [documentation map](docs/README.md). It separates living
+architecture, runbooks, and reference contracts from decision, plan, and review
+snapshots.
+
+## Agent configuration
+
+The shared canonical Rulesync source lives in `.rulesync/`; `rulesync.jsonc`
+targets Claude Code and Codex CLI. `AGENTS.md` and `CLAUDE.md` are generated and
+committed for zero-setup repository guidance. Edit only the canonical source,
+then run:
+
+```bash
+npm run rulesync:dry-run
+npm run rulesync:generate
+npm run rulesync:verify
+```
 
 ## Compatibility
 

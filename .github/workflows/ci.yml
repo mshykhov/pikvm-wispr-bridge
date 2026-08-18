@@ -15,8 +15,9 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - run: npm test
-      - run: npm run package
+          cache: npm
+      - run: npm ci
+      - run: npm run verify
       - uses: actions/upload-artifact@v7
         with:
           name: pikvm-wispr-bridge
