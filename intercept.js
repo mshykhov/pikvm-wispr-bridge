@@ -1,6 +1,4 @@
 (() => {
-  const MESSAGE_TYPE = "pikvm-wispr-send";
-
   function getPiKvmKeyboardTarget() {
     return document.getElementById("stream-window")
       || document.getElementById("keyboard-window")
@@ -42,20 +40,7 @@
     if (!isPiKvmPageReady()) return;
 
     event.stopPropagation();
-    event.stopImmediatePropagation();
     if (isMacPaste) releaseRemoteModifier("MetaLeft", "Meta");
     if (isOtherPaste) releaseRemoteModifier("ControlLeft", "Control");
-  }, true);
-
-  window.addEventListener("paste", (event) => {
-    if (!isPiKvmPageReady()) return;
-
-    const text = event.clipboardData?.getData("text/plain") || "";
-    if (!text) return;
-
-    event.preventDefault();
-    event.stopPropagation();
-    event.stopImmediatePropagation();
-    window.postMessage({ type: MESSAGE_TYPE, text }, window.location.origin);
   }, true);
 })();

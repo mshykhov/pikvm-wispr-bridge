@@ -15,10 +15,29 @@ test("manifest is portable and narrowly scoped to PiKVM paths", () => {
   const matches = manifest.content_scripts.flatMap((script) => script.matches);
 
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, "0.3.1");
-  assert.deepEqual(manifest.permissions, ["storage"]);
+  assert.equal(manifest.version, "0.4.0");
+  assert.deepEqual(manifest.permissions, ["clipboardRead", "offscreen", "storage"]);
+  assert.equal(manifest.background.service_worker, "background.js");
   assert.ok(matches.every((match) => match.includes("/kvm/")));
   assert.doesNotMatch(JSON.stringify(manifest), /panga-bleak|pikvm-v4/i);
+});
+
+test("extension packages an offscreen clipboard fallback", () => {
+  for (const file of ["background.js", "offscreen.html", "offscreen.js"]) {
+    assert.ok(fs.existsSync(path.join(root, file)), `${file} must exist`);
+  }
+  const background = read("background.js");
+  const offscreen = read("offscreen.js");
+  const packageScript = read("scripts/package.sh");
+
+  assert.match(background, /chrome\.offscreen\.createDocument/);
+  assert.match(background, /Reason\.CLIPBOARD/);
+  assert.match(background, /\/kvm\//);
+  assert.match(offscreen, /document\.execCommand\("paste"\)/);
+  assert.doesNotMatch(offscreen, /navigator\.clipboard\.readText/);
+  assert.match(packageScript, /background\.js/);
+  assert.match(packageScript, /offscreen\.html/);
+  assert.match(packageScript, /offscreen\.js/);
 });
 
 test("interceptor supports the local OS paste shortcuts", () => {
@@ -29,13 +48,12 @@ test("interceptor supports the local OS paste shortcuts", () => {
   assert.match(source, /MetaLeft/);
   assert.match(source, /ControlLeft/);
   assert.match(source, /isPiKvmPageReady/);
-  assert.match(source, /clipboardData/);
+  assert.doesNotMatch(source, /clipboardData|postMessage/);
   assert.doesNotMatch(source, /LAYOUT_SHORTCUTS|meta-space|alt-shift/);
 });
 
-test("interceptor forwards paste event data without cancelling the keydown default", () => {
+test("interceptor blocks PiKVM key handling without cancelling browser paste", () => {
   const listeners = new Map();
-  const messages = [];
   const keyboardTarget = { onkeyup() {} };
   const controls = new Set([
     "hid-pak-text",
@@ -45,9 +63,6 @@ test("interceptor forwards paste event data without cancelling the keydown defau
     location: { origin: "https://pikvm.example" },
     addEventListener(type, listener) {
       listeners.set(type, listener);
-    },
-    postMessage(message, origin) {
-      messages.push({ message, origin });
     },
   };
   const document = {
@@ -65,6 +80,8 @@ test("interceptor forwards paste event data without cancelling the keydown defau
   });
 
   let keydownPrevented = false;
+  let propagationStopped = false;
+  let immediatePropagationStopped = false;
   listeners.get("keydown")({
     altKey: false,
     code: "KeyV",
@@ -73,23 +90,13 @@ test("interceptor forwards paste event data without cancelling the keydown defau
     preventDefault() { keydownPrevented = true; },
     repeat: false,
     shiftKey: false,
-    stopImmediatePropagation() {},
-    stopPropagation() {},
+    stopImmediatePropagation() { immediatePropagationStopped = true; },
+    stopPropagation() { propagationStopped = true; },
   });
   assert.equal(keydownPrevented, false);
-
-  let pastePrevented = false;
-  listeners.get("paste")({
-    clipboardData: { getData: () => "clipboard text" },
-    preventDefault() { pastePrevented = true; },
-    stopImmediatePropagation() {},
-    stopPropagation() {},
-  });
-  assert.equal(pastePrevented, true);
-  assert.equal(JSON.stringify(messages), JSON.stringify([{
-    message: { type: "pikvm-wispr-send", text: "clipboard text" },
-    origin: "https://pikvm.example",
-  }]));
+  assert.equal(propagationStopped, true);
+  assert.equal(immediatePropagationStopped, false);
+  assert.equal(listeners.has("paste"), false);
 });
 
 test("bridge uses PiKVM controls and guards clipboard sends", () => {
@@ -102,6 +109,13 @@ test("bridge uses PiKVM controls and guards clipboard sends", () => {
   assert.match(source, /DUPLICATE_WINDOW_MS/);
   assert.match(source, /MAX_TEXT_LENGTH/);
   assert.match(source, /autoKeymap/);
+  assert.match(source, /isPiKvmPageReady/);
+  assert.match(source, /pasteQueue/);
+  assert.doesNotMatch(source, /if \(sending\) return/);
+  assert.match(source, /chrome\.runtime\.sendMessage/);
+  assert.match(source, /event\.isTrusted/);
+  assert.match(source, /addEventListener\("paste"/);
+  assert.match(source, /clipboardData/);
   assert.doesNotMatch(source, /switchTargetLayout|layoutShortcut/);
   assert.doesNotMatch(source, /navigator\.clipboard|readText|fetch\(|XMLHttpRequest|console\./);
 });
@@ -170,4 +184,10 @@ test("macOS helper installer is idempotent and uninstallable", () => {
   const backups = fs.readdirSync(path.dirname(initFile))
     .filter((name) => name.startsWith("init.lua.backup."));
   assert.equal(backups.length, 2);
+});
+
+test("macOS helper requires the exact PiKVM path boundary", () => {
+  const source = read("extras/PiKVMWispr.spoon/init.lua");
+  assert.ok(source.includes('url:match("^https?://[^/]+/kvm/")'));
+  assert.doesNotMatch(source, /\/kvm\/\?"/);
 });

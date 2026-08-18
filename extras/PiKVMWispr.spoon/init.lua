@@ -2,7 +2,7 @@ local obj = {}
 obj.__index = obj
 
 obj.name = "PiKVMWispr"
-obj.version = "0.3.1"
+obj.version = "0.4.0"
 obj.author = "Myron Shykhov"
 obj.homepage = "https://github.com/mshykhov/pikvm-wispr-bridge"
 obj.license = "MIT"
@@ -39,7 +39,7 @@ function obj:isPiKvmFrontmost()
     local ok, url = hs.osascript.applescript(script)
     return ok
         and type(url) == "string"
-        and url:match("^https?://[^/]+/kvm/?") ~= nil
+        and url:match("^https?://[^/]+/kvm/") ~= nil
 end
 
 function obj:disarm()

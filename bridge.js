@@ -1,5 +1,5 @@
 (() => {
-  const MESSAGE_TYPE = "pikvm-wispr-send";
+  const CLIPBOARD_MESSAGE_TYPE = "pikvm-wispr-read-clipboard";
   const DUPLICATE_WINDOW_MS = 2000;
   const MAX_TEXT_LENGTH = 20000;
   const PASTE_TIMEOUT_MS = 30000;
@@ -8,7 +8,23 @@
   };
   let lastText = "";
   let lastSentAt = 0;
-  let sending = false;
+  let processingQueue = false;
+  const pasteQueue = [];
+  let clipboardFallbackTimer = null;
+
+  function isPasteShortcut(event) {
+    const isMacPaste = event.code === "KeyV"
+      && event.metaKey
+      && !event.altKey
+      && !event.ctrlKey
+      && !event.shiftKey;
+    const isOtherPaste = event.code === "KeyV"
+      && event.ctrlKey
+      && !event.altKey
+      && !event.metaKey
+      && !event.shiftKey;
+    return isMacPaste || isOtherPaste;
+  }
 
   function getSettings() {
     return new Promise((resolve) => {
@@ -50,6 +66,21 @@
     }
 
     return { textarea, sendButton, confirmation, keymapSelector };
+  }
+
+  function isPiKvmPageReady() {
+    return Boolean(
+      document.getElementById("hid-pak-text")
+      && document.getElementById("hid-pak-button")
+      && document.getElementById("hid-pak-keymap-selector"),
+    );
+  }
+
+  function clearClipboardFallback() {
+    if (clipboardFallbackTimer !== null) {
+      window.clearTimeout(clipboardFallbackTimer);
+      clipboardFallbackTimer = null;
+    }
   }
 
   function selectKeymap(selector, keymap) {
@@ -126,10 +157,7 @@
     return activeKeymap;
   }
 
-  async function handlePaste(text) {
-    if (sending) return;
-    sending = true;
-
+  async function sendQueuedText(text) {
     try {
       if (!text) throw new Error("Flow transcript is empty");
       if (text.length > MAX_TEXT_LENGTH) {
@@ -148,16 +176,57 @@
       showStatus(`Sent ${text.length} characters; PiKVM keymap ${finalKeymap}`);
     } catch (error) {
       showStatus(error.message || "Could not send transcript", true);
-    } finally {
-      sending = false;
     }
   }
 
-  window.addEventListener("message", (event) => {
-    if (event.source !== window) return;
-    if (event.origin !== window.location.origin) return;
-    if (event.data?.type !== MESSAGE_TYPE) return;
-    if (typeof event.data.text !== "string") return;
-    handlePaste(event.data.text);
-  });
+  async function drainPasteQueue() {
+    processingQueue = true;
+    try {
+      while (pasteQueue.length > 0) {
+        await sendQueuedText(pasteQueue.shift());
+      }
+    } finally {
+      processingQueue = false;
+    }
+  }
+
+  function handlePaste(text) {
+    pasteQueue.push(text);
+    if (!processingQueue) drainPasteQueue();
+  }
+
+  window.addEventListener("keydown", (event) => {
+    if (!event.isTrusted || event.repeat || !isPasteShortcut(event)) return;
+    if (!isPiKvmPageReady()) return;
+
+    clearClipboardFallback();
+    clipboardFallbackTimer = window.setTimeout(async () => {
+      clipboardFallbackTimer = null;
+      try {
+        const response = await chrome.runtime.sendMessage({
+          target: "background",
+          type: CLIPBOARD_MESSAGE_TYPE,
+        });
+        if (!response?.ok) {
+          throw new Error(response?.error || "Could not read clipboard");
+        }
+        await handlePaste(response.text);
+      } catch (error) {
+        showStatus(error.message || "Could not read clipboard", true);
+      }
+    }, 0);
+  }, true);
+
+  window.addEventListener("paste", (event) => {
+    if (!isPiKvmPageReady()) return;
+    clearClipboardFallback();
+
+    const text = event.clipboardData?.getData("text/plain") || "";
+    if (!text) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    handlePaste(text);
+  }, true);
 })();

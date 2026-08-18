@@ -63,6 +63,11 @@ The extension accepts the paste shortcut Flow generates for the local OS:
 - macOS: `Cmd+V`
 - Windows and Linux: `Ctrl+V`
 
+The normal browser `paste` event is used when available. If the focused PiKVM
+canvas does not produce that event, a Manifest V3 offscreen document reads the
+clipboard after the trusted paste shortcut. This fallback works independently
+of whether the focus is on the video, canvas, or Text panel.
+
 ## Use
 
 1. Open PiKVM and click the desired field on the target computer.
@@ -119,8 +124,9 @@ active target layout can type. See [docs/LAYOUTS.md](docs/LAYOUTS.md).
 The extension:
 
 - runs only on URLs whose path starts with `/kvm/`;
-- receives clipboard text only from a standard `paste` event in an active
-  PiKVM page and does not request clipboard-read permission;
+- receives clipboard text from a standard `paste` event when available;
+- uses clipboard-read permission only as a fallback after a trusted paste
+  shortcut on a fully loaded PiKVM page;
 - does not log, store, or send transcript text anywhere except the PiKVM page;
 - stores only the automatic PiKVM keymap toggle;
 - ignores duplicate sends within two seconds;
@@ -141,7 +147,7 @@ The packaged extension is written to `dist/pikvm-wispr-bridge.zip`.
 
 ## Compatibility
 
-- Chromium browsers using Manifest V3
+- Chromium 109+ browsers using Manifest V3 and the Offscreen API
 - Stock PiKVM Web UI with `/kvm/`
 - Wispr Flow on macOS and Windows
 

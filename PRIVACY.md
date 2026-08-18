@@ -3,9 +3,11 @@
 Wispr Flow to PiKVM does not collect analytics, telemetry, account information,
 or browsing history.
 
-The extension does not request clipboard-read permission. It receives text only
-from the browser's standard `paste` event after the user or Wispr Flow produces
-`Cmd+V` or `Ctrl+V` while an eligible PiKVM `/kvm/` page is active.
+The extension first uses the browser's standard `paste` event. Some PiKVM focus
+targets do not produce that event, so the extension also requests clipboard-read
+permission for a fallback. The fallback runs only after a trusted `Cmd+V` or
+`Ctrl+V` event on a fully loaded PiKVM `/kvm/` page. Clipboard access happens in
+a hidden offscreen extension document.
 
 Transcript text is placed into PiKVM's existing Paste-as-Keys control. It is not
 stored by the extension, written to logs, or sent to another service.

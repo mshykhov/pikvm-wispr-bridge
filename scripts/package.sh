@@ -11,6 +11,9 @@ rm -f "$archive"
 cd "$repo_dir"
 zip -qr "$archive" \
     manifest.json \
+    background.js \
+    offscreen.html \
+    offscreen.js \
     intercept.js \
     bridge.js \
     languages.js \
