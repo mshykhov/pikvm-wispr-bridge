@@ -1,9 +1,13 @@
 {
   "manifest_version": 3,
   "name": "Wispr Flow to PiKVM",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Routes Wispr Flow paste into the active PiKVM session as HID keystrokes.",
-  "permissions": ["clipboardRead"],
+  "permissions": ["clipboardRead", "storage"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Wispr Flow to PiKVM settings"
+  },
   "content_scripts": [
     {
       "matches": [
@@ -23,7 +27,7 @@
         "http://*/kvm/",
         "http://*/kvm/*"
       ],
-      "js": ["bridge.js"],
+      "js": ["languages.js", "bridge.js"],
       "run_at": "document_start"
     }
   ]

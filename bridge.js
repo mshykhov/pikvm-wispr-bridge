@@ -1,10 +1,27 @@
 (() => {
   const MESSAGE_TYPE = "pikvm-wispr-send";
+  const LAYOUT_MESSAGE_TYPE = "pikvm-wispr-layout-shortcut";
   const DUPLICATE_WINDOW_MS = 2000;
   const MAX_TEXT_LENGTH = 20000;
+  const PASTE_TIMEOUT_MS = 30000;
+  const DEFAULT_SETTINGS = {
+    autoLayout: false,
+    layoutShortcut: "alt-shift",
+    layoutDelayMs: 250,
+  };
   let lastText = "";
   let lastSentAt = 0;
   let sending = false;
+
+  function sleep(milliseconds) {
+    return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+  }
+
+  function getSettings() {
+    return new Promise((resolve) => {
+      chrome.storage.local.get(DEFAULT_SETTINGS, resolve);
+    });
+  }
 
   function showStatus(message, isError = false) {
     document.getElementById("pikvm-wispr-status")?.remove();
@@ -26,19 +43,46 @@
     ].join(";");
 
     document.documentElement.appendChild(status);
-    window.setTimeout(() => status.remove(), 2500);
+    window.setTimeout(() => status.remove(), isError ? 5000 : 2500);
   }
 
-  function sendThroughPiKvm(text) {
+  function getPiKvmControls() {
     const textarea = document.getElementById("hid-pak-text");
     const sendButton = document.getElementById("hid-pak-button");
     const confirmation = document.getElementById("hid-pak-ask-switch");
-    const keymap = document.getElementById("hid-pak-keymap-selector")?.value;
+    const keymapSelector = document.getElementById("hid-pak-keymap-selector");
 
-    if (!textarea || !sendButton) {
+    if (!textarea || !sendButton || !keymapSelector) {
       throw new Error("PiKVM Text controls are unavailable");
     }
 
+    return { textarea, sendButton, confirmation, keymapSelector };
+  }
+
+  function selectKeymap(selector, keymap) {
+    const available = [...selector.options].some((option) => option.value === keymap);
+    if (!available) throw new Error(`PiKVM keymap ${keymap} is unavailable`);
+    selector.value = keymap;
+    selector.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  function waitForPasteCompletion(textarea, sendButton) {
+    return new Promise((resolve, reject) => {
+      const startedAt = Date.now();
+      const timer = window.setInterval(() => {
+        if (!sendButton.disabled && textarea.value === "") {
+          window.clearInterval(timer);
+          resolve();
+        } else if (Date.now() - startedAt >= PASTE_TIMEOUT_MS) {
+          window.clearInterval(timer);
+          reject(new Error("PiKVM paste timed out"));
+        }
+      }, 25);
+    });
+  }
+
+  async function sendSegment(text, controls) {
+    const { textarea, sendButton, confirmation } = controls;
     textarea.value = text;
     textarea.dispatchEvent(new Event("input", { bubbles: true }));
 
@@ -55,7 +99,51 @@
       if (confirmation) confirmation.checked = confirmationWasEnabled;
     }
 
-    return keymap || "default";
+    await waitForPasteCompletion(textarea, sendButton);
+  }
+
+  async function switchTargetLayout(shortcut, delayMs) {
+    window.postMessage({
+      type: LAYOUT_MESSAGE_TYPE,
+      shortcut,
+    }, window.location.origin);
+    await sleep(delayMs);
+  }
+
+  async function sendText(text, settings) {
+    const controls = getPiKvmControls();
+    const { keymapSelector } = controls;
+    const currentKeymap = keymapSelector.value;
+    const segments = PiKVMWisprLanguages.splitByKeymap(text, currentKeymap);
+    const textKeymaps = new Set(segments.map((segment) => segment.keymap));
+
+    if (!settings.autoLayout) {
+      if (textKeymaps.size > 1) {
+        throw new Error("Mixed RU/EN text: enable Auto layout in the extension popup");
+      }
+      const requiredKeymap = segments[0]?.keymap || currentKeymap;
+      if (requiredKeymap !== currentKeymap) {
+        throw new Error(`Select ${requiredKeymap} in PiKVM or enable Auto layout`);
+      }
+      await sendSegment(text, controls);
+      return currentKeymap;
+    }
+
+    if (currentKeymap !== "ru" && currentKeymap !== "en-us") {
+      throw new Error("Select ru or en-us in PiKVM to synchronize the initial layout");
+    }
+
+    let activeKeymap = currentKeymap;
+    for (const segment of segments) {
+      if (segment.keymap !== activeKeymap) {
+        await switchTargetLayout(settings.layoutShortcut, settings.layoutDelayMs);
+        selectKeymap(keymapSelector, segment.keymap);
+        activeKeymap = segment.keymap;
+      }
+      await sendSegment(segment.text, controls);
+    }
+
+    return activeKeymap;
   }
 
   async function handlePaste() {
@@ -74,10 +162,11 @@
         throw new Error("Duplicate transcript ignored");
       }
 
-      const keymap = sendThroughPiKvm(text);
+      const settings = await getSettings();
+      const finalKeymap = await sendText(text, settings);
       lastText = text;
       lastSentAt = now;
-      showStatus(`Queued ${text.length} characters via ${keymap}`);
+      showStatus(`Sent ${text.length} characters; final layout ${finalKeymap}`);
     } catch (error) {
       showStatus(error.message || "Could not send transcript", true);
     } finally {

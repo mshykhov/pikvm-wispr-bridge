@@ -13,6 +13,8 @@ is enabled for the repository.
 - Clipboard text is read only in response to a paste shortcut.
 - No PiKVM credentials are stored by the extension; it uses the authenticated
   browser session and PiKVM's own Web UI.
+- Automatic layout switching accepts only four built-in shortcut choices and
+  cannot execute arbitrary keys or scripts.
 - The optional Hammerspoon helper checks both the frontmost browser and active
   `/kvm/` URL before generating a paste shortcut.
 

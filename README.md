@@ -73,6 +73,29 @@ The extension accepts the paste shortcut Flow generates for the local OS:
 The extension temporarily bypasses PiKVM's paste confirmation for this action;
 it does not change the saved confirmation preference.
 
+## Automatic Russian and English switching
+
+The extension can split mixed text such as `Привет, hello` into Cyrillic and
+Latin runs, switch the target layout, select the matching PiKVM keymap, and send
+each run in order.
+
+Setup:
+
+1. Leave only Russian and English layouts enabled on the target computer.
+2. Set the target layout and PiKVM **Text** keymap to the same language once.
+3. Open the extension popup from the browser toolbar.
+4. Enable **Automatically switch RU/EN**.
+5. Select the shortcut used by the target computer:
+   - `Alt+Shift`
+   - `Win/Super+Space`
+   - `Ctrl+Shift`
+   - `Ctrl+Space`
+6. Dictate a mixed phrase and keep the PiKVM tab active until typing finishes.
+
+Auto mode assumes the selected PiKVM keymap represents the target's current
+layout. Both remain synchronized after each language switch. If the target
+layout is changed manually outside the extension, repeat step 2.
+
 ## How the macOS `Fn` fallback works
 
 Flow may decide that the PiKVM canvas is not a text field and copy the transcript
@@ -95,9 +118,9 @@ The target OS must use the matching active layout:
 - PiKVM `en-us` -> target English (US)
 - PiKVM `ru` -> target Russian
 
-PiKVM cannot inspect or select the target OS layout. Automatic mixed-language
-typing therefore requires target-specific layout switching and is not enabled
-by default. See [docs/LAYOUTS.md](docs/LAYOUTS.md).
+PiKVM cannot inspect the target OS layout. Automatic mixed-language typing uses
+the explicitly configured target shortcut and is disabled by default. See
+[docs/LAYOUTS.md](docs/LAYOUTS.md).
 
 ## Security and privacy
 
@@ -106,6 +129,7 @@ The extension:
 - runs only on URLs whose path starts with `/kvm/`;
 - reads the clipboard only after `Cmd+V` or `Ctrl+V` in an active PiKVM page;
 - does not log, store, or send transcript text anywhere except the PiKVM page;
+- stores only the Auto-layout toggle, shortcut choice, and switch delay;
 - ignores duplicate sends within two seconds;
 - limits a single transcript to 20,000 characters.
 

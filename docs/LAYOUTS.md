@@ -15,10 +15,22 @@ For the first test, use one language per dictation:
 2. Select the matching PiKVM keymap.
 3. Dictate and send the text.
 
-Mixed Cyrillic and Latin text cannot be made reliable by changing only the
-PiKVM keymap. A future automatic mode must split the text into language runs and
-use deterministic, OS-specific shortcuts that select rather than merely toggle
-the target layout.
+## Automatic mode
+
+Auto mode splits mixed Cyrillic and Latin text into runs. Before a run whose
+language differs from the current PiKVM keymap, it sends the configured target
+layout shortcut and then selects the matching PiKVM keymap.
+
+The mode assumes:
+
+- the target has exactly Russian and English layouts in its switching cycle;
+- the PiKVM keymap and target layout are synchronized before Auto is enabled;
+- the target shortcut is correctly selected in the extension popup;
+- the target layout is not changed independently while the extension is active.
+
+After each switch, PiKVM keeps the final keymap selected, so the synchronized
+state carries into the next dictation. If state is lost, select the same layout
+on the target and in PiKVM once before continuing.
 
 Emoji and some typographic characters may not exist in the selected hardware
 keymap and should be tested separately.

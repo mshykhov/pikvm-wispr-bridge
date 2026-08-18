@@ -13,6 +13,9 @@ zip -qr "$archive" \
     manifest.json \
     intercept.js \
     bridge.js \
+    languages.js \
+    popup.html \
+    popup.js \
     README.md \
     LICENSE \
     PRIVACY.md \

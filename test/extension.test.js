@@ -7,13 +7,15 @@ const os = require("node:os");
 
 const root = path.resolve(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
+const languages = require(path.join(root, "languages.js"));
 
 test("manifest is portable and narrowly scoped to PiKVM paths", () => {
   const manifest = JSON.parse(read("manifest.json"));
   const matches = manifest.content_scripts.flatMap((script) => script.matches);
 
   assert.equal(manifest.manifest_version, 3);
-  assert.deepEqual(manifest.permissions, ["clipboardRead"]);
+  assert.equal(manifest.version, "0.2.0");
+  assert.deepEqual(manifest.permissions, ["clipboardRead", "storage"]);
   assert.ok(matches.every((match) => match.includes("/kvm/")));
   assert.doesNotMatch(JSON.stringify(manifest), /panga-bleak|pikvm-v4/i);
 });
@@ -26,6 +28,8 @@ test("interceptor supports the local OS paste shortcuts", () => {
   assert.match(source, /MetaLeft/);
   assert.match(source, /ControlLeft/);
   assert.match(source, /isPiKvmPageReady/);
+  assert.match(source, /LAYOUT_SHORTCUTS/);
+  assert.match(source, /meta-space/);
 });
 
 test("bridge uses PiKVM controls and guards clipboard sends", () => {
@@ -37,7 +41,31 @@ test("bridge uses PiKVM controls and guards clipboard sends", () => {
   assert.match(source, /hid-pak-ask-switch/);
   assert.match(source, /DUPLICATE_WINDOW_MS/);
   assert.match(source, /MAX_TEXT_LENGTH/);
+  assert.match(source, /autoLayout/);
+  assert.match(source, /switchTargetLayout/);
   assert.doesNotMatch(source, /fetch\(|XMLHttpRequest|console\./);
+});
+
+test("language splitter preserves text and separates Cyrillic from Latin", () => {
+  assert.deepEqual(languages.splitByKeymap("Привет, hello!"), [
+    { keymap: "ru", text: "Привет, " },
+    { keymap: "en-us", text: "hello!" },
+  ]);
+  assert.deepEqual(languages.splitByKeymap("123 привет"), [
+    { keymap: "ru", text: "123 привет" },
+  ]);
+  assert.deepEqual(languages.splitByKeymap("hello world"), [
+    { keymap: "en-us", text: "hello world" },
+  ]);
+});
+
+test("popup exposes explicit auto-layout settings", () => {
+  const html = read("popup.html");
+  const source = read("popup.js");
+  assert.match(html, /Automatically switch RU\/EN/);
+  assert.match(html, /Alt \+ Shift/);
+  assert.match(source, /autoLayout: false/);
+  assert.match(source, /chrome\.storage\.local/);
 });
 
 test("macOS helper installer is idempotent and uninstallable", () => {

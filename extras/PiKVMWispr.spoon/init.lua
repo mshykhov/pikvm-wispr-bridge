@@ -2,7 +2,7 @@ local obj = {}
 obj.__index = obj
 
 obj.name = "PiKVMWispr"
-obj.version = "0.1.0"
+obj.version = "0.2.0"
 obj.author = "Myron Shykhov"
 obj.homepage = "https://github.com/mshykhov/pikvm-wispr-bridge"
 obj.license = "MIT"
