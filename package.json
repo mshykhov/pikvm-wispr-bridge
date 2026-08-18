@@ -1,0 +1,14 @@
+{
+  "name": "pikvm-wispr-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Route Wispr Flow dictation into PiKVM Paste-as-Keys.",
+  "scripts": {
+    "test": "node --test",
+    "package": "bash scripts/package.sh"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}
