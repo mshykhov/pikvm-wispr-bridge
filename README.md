@@ -84,7 +84,8 @@ Setup:
 1. Leave only Russian and English layouts enabled on the target computer.
 2. Set the target layout and PiKVM **Text** keymap to the same language once.
 3. Open the extension popup from the browser toolbar.
-4. Enable **Automatically switch RU/EN**.
+4. Auto switching is enabled by default. Leave **Automatically switch RU/EN**
+   enabled.
 5. Select the shortcut used by the target computer:
    - `Alt+Shift`
    - `Win/Super+Space`
@@ -118,8 +119,8 @@ The target OS must use the matching active layout:
 - PiKVM `en-us` -> target English (US)
 - PiKVM `ru` -> target Russian
 
-PiKVM cannot inspect the target OS layout. Automatic mixed-language typing uses
-the explicitly configured target shortcut and is disabled by default. See
+PiKVM cannot inspect the target OS layout. Automatic mixed-language typing is
+enabled by default and uses `Alt+Shift` until another target shortcut is selected. See
 [docs/LAYOUTS.md](docs/LAYOUTS.md).
 
 ## Security and privacy

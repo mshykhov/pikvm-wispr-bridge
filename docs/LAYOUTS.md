@@ -21,6 +21,9 @@ Auto mode splits mixed Cyrillic and Latin text into runs. Before a run whose
 language differs from the current PiKVM keymap, it sends the configured target
 layout shortcut and then selects the matching PiKVM keymap.
 
+Auto mode is enabled by default with `Alt+Shift` as the target shortcut. Change
+the shortcut in the extension popup when the target uses another combination.
+
 The mode assumes:
 
 - the target has exactly Russian and English layouts in its switching cycle;

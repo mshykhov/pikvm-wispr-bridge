@@ -5,7 +5,7 @@
   const MAX_TEXT_LENGTH = 20000;
   const PASTE_TIMEOUT_MS = 30000;
   const DEFAULT_SETTINGS = {
-    autoLayout: false,
+    autoLayout: true,
     layoutShortcut: "alt-shift",
     layoutDelayMs: 250,
   };

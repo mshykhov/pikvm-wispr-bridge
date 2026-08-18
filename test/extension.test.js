@@ -14,7 +14,7 @@ test("manifest is portable and narrowly scoped to PiKVM paths", () => {
   const matches = manifest.content_scripts.flatMap((script) => script.matches);
 
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, "0.2.0");
+  assert.equal(manifest.version, "0.2.1");
   assert.deepEqual(manifest.permissions, ["clipboardRead", "storage"]);
   assert.ok(matches.every((match) => match.includes("/kvm/")));
   assert.doesNotMatch(JSON.stringify(manifest), /panga-bleak|pikvm-v4/i);
@@ -64,7 +64,7 @@ test("popup exposes explicit auto-layout settings", () => {
   const source = read("popup.js");
   assert.match(html, /Automatically switch RU\/EN/);
   assert.match(html, /Alt \+ Shift/);
-  assert.match(source, /autoLayout: false/);
+  assert.match(source, /autoLayout: true/);
   assert.match(source, /chrome\.storage\.local/);
 });
 

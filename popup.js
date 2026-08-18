@@ -1,6 +1,6 @@
 (() => {
   const DEFAULT_SETTINGS = {
-    autoLayout: false,
+    autoLayout: true,
     layoutShortcut: "alt-shift",
     layoutDelayMs: 250,
   };
