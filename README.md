@@ -12,9 +12,15 @@ No agent is installed on the target computer. The target sees an ordinary USB
 keyboard, so this works in browsers, desktop applications, login screens, and
 other focused text fields.
 
-## Install
+## Quick start on macOS
 
-### Chrome, Vivaldi, Brave, or Edge
+Reliable one-action operation needs two small pieces:
+
+1. The browser extension routes paste into PiKVM Paste-as-Keys.
+2. The Hammerspoon helper handles the case where Flow copies a transcript but
+   does not paste because the PiKVM canvas is not a text field.
+
+### 1. Load the browser extension
 
 1. Download and unzip the latest release, or clone this repository.
 2. Open the browser's extensions page:
@@ -25,6 +31,32 @@ other focused text fields.
 3. Enable **Developer mode**.
 4. Click **Load unpacked** and select the unzipped repository folder.
 5. Reload the PiKVM `/kvm/` tab.
+
+Chromium does not allow a GitHub project to silently install an unpacked
+extension. Publishing in a browser store can remove this manual step later.
+
+### 2. Install the macOS helper
+
+Install [Hammerspoon](https://www.hammerspoon.org/) first, then run from the
+repository root:
+
+```bash
+./scripts/install-macos.sh
+```
+
+The installer:
+
+- creates a backup of an existing `~/.hammerspoon/init.lua`;
+- links the bundled `PiKVMWispr.spoon`;
+- adds a small managed block to the Hammerspoon configuration;
+- reloads Hammerspoon when its command-line helper is available;
+- can be run repeatedly without duplicating configuration.
+
+To remove the helper:
+
+```bash
+./scripts/uninstall-macos.sh
+```
 
 The extension accepts the paste shortcut Flow generates for the local OS:
 
@@ -41,26 +73,19 @@ The extension accepts the paste shortcut Flow generates for the local OS:
 The extension temporarily bypasses PiKVM's paste confirmation for this action;
 it does not change the saved confirmation preference.
 
-## macOS `Fn` fallback
+## How the macOS `Fn` fallback works
 
 Flow may decide that the PiKVM canvas is not a text field and copy the transcript
 without issuing `Cmd+V`. The optional Hammerspoon Spoon in
 [`extras/PiKVMWispr.spoon`](extras/PiKVMWispr.spoon) handles that case while
 preserving the same one-action workflow:
 
-1. Copy `extras/PiKVMWispr.spoon` into `~/.hammerspoon/Spoons/`.
-2. Add the following to `~/.hammerspoon/init.lua`:
-
-   ```lua
-   hs.loadSpoon("PiKVMWispr")
-   spoon.PiKVMWispr:start()
-   ```
-
-3. Reload Hammerspoon.
-
 After a long `Fn` hold, the Spoon waits for exactly one clipboard change. It
 presses `Cmd+V` only if a supported Chromium browser is still frontmost and its
 active URL is a `/kvm/` page. It does not interfere with a short `Fn` tap.
+
+The extension alone is sufficient when Flow already generates `Cmd+V`. The
+helper makes the behavior reliable when Flow only copies the transcript.
 
 ## Keyboard layouts
 
@@ -103,7 +128,9 @@ The packaged extension is written to `dist/pikvm-wispr-bridge.zip`.
 - Stock PiKVM Web UI with `/kvm/`
 - Wispr Flow on macOS and Windows
 
-Safari and Firefox are not currently packaged.
+The browser extension supports Windows and Linux, but the automatic
+clipboard-change fallback is currently macOS-only. Safari and Firefox are not
+currently packaged.
 
 ## License
 
