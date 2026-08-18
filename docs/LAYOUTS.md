@@ -15,25 +15,21 @@ For the first test, use one language per dictation:
 2. Select the matching PiKVM keymap.
 3. Dictate and send the text.
 
-## Automatic mode
+## Automatic PiKVM keymap mode
 
-Auto mode splits mixed Cyrillic and Latin text into runs. Before a run whose
-language differs from the current PiKVM keymap, it sends the configured target
-layout shortcut and then selects the matching PiKVM keymap.
+Auto mode splits mixed Cyrillic and Latin text into runs and selects the matching
+PiKVM `ru` or `en-us` keymap before sending each run.
 
-Auto mode is enabled by default with `Alt+Shift` as the target shortcut. Change
-the shortcut in the extension popup when the target uses another combination.
+Auto mode is enabled by default. It changes only the **using a host keymap**
+selector shown in PiKVM's Text panel.
 
-The mode assumes:
+The extension never sends `Alt+Shift`, `Win+Space`, or another layout-switch
+shortcut to the target computer. The target layout remains entirely under the
+user's control.
 
-- the target has exactly Russian and English layouts in its switching cycle;
-- the PiKVM keymap and target layout are synchronized before Auto is enabled;
-- the target shortcut is correctly selected in the extension popup;
-- the target layout is not changed independently while the extension is active.
-
-After each switch, PiKVM keeps the final keymap selected, so the synchronized
-state carries into the next dictation. If state is lost, select the same layout
-on the target and in PiKVM once before continuing.
+Because PiKVM sends physical HID keys, the active target layout still needs to
+support the characters being sent. Mixed Russian and English cannot be guaranteed
+when the target stays in one layout.
 
 Emoji and some typographic characters may not exist in the selected hardware
 keymap and should be tested separately.

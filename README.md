@@ -73,29 +73,20 @@ The extension accepts the paste shortcut Flow generates for the local OS:
 The extension temporarily bypasses PiKVM's paste confirmation for this action;
 it does not change the saved confirmation preference.
 
-## Automatic Russian and English switching
+## Automatic PiKVM keymap selection
 
 The extension can split mixed text such as `Привет, hello` into Cyrillic and
-Latin runs, switch the target layout, select the matching PiKVM keymap, and send
-each run in order.
+Latin runs, select the matching `ru` or `en-us` PiKVM host keymap, and send each
+run in order.
 
 Setup:
 
-1. Leave only Russian and English layouts enabled on the target computer.
-2. Set the target layout and PiKVM **Text** keymap to the same language once.
-3. Open the extension popup from the browser toolbar.
-4. Auto switching is enabled by default. Leave **Automatically switch RU/EN**
-   enabled.
-5. Select the shortcut used by the target computer:
-   - `Alt+Shift`
-   - `Win/Super+Space`
-   - `Ctrl+Shift`
-   - `Ctrl+Space`
-6. Dictate a mixed phrase and keep the PiKVM tab active until typing finishes.
+1. Set the remote computer to the language you intend to dictate.
+2. Dictate while the PiKVM tab is active.
 
-Auto mode assumes the selected PiKVM keymap represents the target's current
-layout. Both remain synchronized after each language switch. If the target
-layout is changed manually outside the extension, repeat step 2.
+Automatic keymap selection is enabled by default. It changes only PiKVM's
+**using a host keymap** selector. It never sends a layout-switch shortcut to the
+remote computer.
 
 ## How the macOS `Fn` fallback works
 
@@ -119,9 +110,9 @@ The target OS must use the matching active layout:
 - PiKVM `en-us` -> target English (US)
 - PiKVM `ru` -> target Russian
 
-PiKVM cannot inspect the target OS layout. Automatic mixed-language typing is
-enabled by default and uses `Alt+Shift` until another target shortcut is selected. See
-[docs/LAYOUTS.md](docs/LAYOUTS.md).
+PiKVM cannot inspect or change the target OS layout. This extension deliberately
+does not try to change it. Mixed-language output therefore depends on what the
+active target layout can type. See [docs/LAYOUTS.md](docs/LAYOUTS.md).
 
 ## Security and privacy
 
@@ -130,7 +121,7 @@ The extension:
 - runs only on URLs whose path starts with `/kvm/`;
 - reads the clipboard only after `Cmd+V` or `Ctrl+V` in an active PiKVM page;
 - does not log, store, or send transcript text anywhere except the PiKVM page;
-- stores only the Auto-layout toggle, shortcut choice, and switch delay;
+- stores only the automatic PiKVM keymap toggle;
 - ignores duplicate sends within two seconds;
 - limits a single transcript to 20,000 characters.
 

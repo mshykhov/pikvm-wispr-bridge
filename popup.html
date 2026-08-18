@@ -7,10 +7,8 @@
     <style>
       body { width: 290px; margin: 0; padding: 16px; color: #202124; font: 13px system-ui, sans-serif; }
       h1 { margin: 0 0 14px; font-size: 16px; }
-      label { display: block; margin: 12px 0 5px; font-weight: 600; }
       .toggle { display: flex; align-items: center; gap: 8px; margin: 0; }
       .toggle input { margin: 0; }
-      select { box-sizing: border-box; width: 100%; padding: 7px; }
       p { margin: 10px 0 0; color: #5f6368; line-height: 1.4; }
       #status { min-height: 18px; margin-top: 12px; color: #137333; }
     </style>
@@ -18,28 +16,12 @@
   <body>
     <h1>Wispr Flow to PiKVM</h1>
     <label class="toggle">
-      <input id="auto-layout" type="checkbox">
-      Automatically switch RU/EN
+      <input id="auto-keymap" type="checkbox">
+      Automatically select PiKVM ru/en-us keymap
     </label>
 
-    <label for="layout-shortcut">Target layout shortcut</label>
-    <select id="layout-shortcut">
-      <option value="alt-shift">Alt + Shift</option>
-      <option value="meta-space">Win/Super + Space</option>
-      <option value="ctrl-shift">Ctrl + Shift</option>
-      <option value="ctrl-space">Ctrl + Space</option>
-    </select>
-
-    <label for="layout-delay">Delay after switch</label>
-    <select id="layout-delay">
-      <option value="150">150 ms</option>
-      <option value="250">250 ms</option>
-      <option value="400">400 ms</option>
-      <option value="700">700 ms</option>
-    </select>
-
-    <p>Before enabling Auto, set the target layout and PiKVM keymap to the same
-      language. Auto assumes exactly two target layouts: Russian and English.</p>
+    <p>This changes only PiKVM's <strong>using a host keymap</strong> selector.
+      It never switches the keyboard layout on the remote computer.</p>
     <div id="status" role="status"></div>
     <script src="popup.js"></script>
   </body>

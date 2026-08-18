@@ -1,20 +1,14 @@
 (() => {
   const DEFAULT_SETTINGS = {
-    autoLayout: true,
-    layoutShortcut: "alt-shift",
-    layoutDelayMs: 250,
+    autoKeymap: true,
   };
 
-  const autoLayout = document.getElementById("auto-layout");
-  const layoutShortcut = document.getElementById("layout-shortcut");
-  const layoutDelay = document.getElementById("layout-delay");
+  const autoKeymap = document.getElementById("auto-keymap");
   const status = document.getElementById("status");
 
   function save() {
     chrome.storage.local.set({
-      autoLayout: autoLayout.checked,
-      layoutShortcut: layoutShortcut.value,
-      layoutDelayMs: Number(layoutDelay.value),
+      autoKeymap: autoKeymap.checked,
     }, () => {
       status.textContent = "Saved";
       window.setTimeout(() => { status.textContent = ""; }, 1200);
@@ -22,12 +16,8 @@
   }
 
   chrome.storage.local.get(DEFAULT_SETTINGS, (settings) => {
-    autoLayout.checked = settings.autoLayout;
-    layoutShortcut.value = settings.layoutShortcut;
-    layoutDelay.value = String(settings.layoutDelayMs);
+    autoKeymap.checked = settings.autoKeymap;
   });
 
-  autoLayout.addEventListener("change", save);
-  layoutShortcut.addEventListener("change", save);
-  layoutDelay.addEventListener("change", save);
+  autoKeymap.addEventListener("change", save);
 })();

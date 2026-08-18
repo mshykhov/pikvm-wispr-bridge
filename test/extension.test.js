@@ -14,7 +14,7 @@ test("manifest is portable and narrowly scoped to PiKVM paths", () => {
   const matches = manifest.content_scripts.flatMap((script) => script.matches);
 
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, "0.2.1");
+  assert.equal(manifest.version, "0.3.0");
   assert.deepEqual(manifest.permissions, ["clipboardRead", "storage"]);
   assert.ok(matches.every((match) => match.includes("/kvm/")));
   assert.doesNotMatch(JSON.stringify(manifest), /panga-bleak|pikvm-v4/i);
@@ -28,8 +28,7 @@ test("interceptor supports the local OS paste shortcuts", () => {
   assert.match(source, /MetaLeft/);
   assert.match(source, /ControlLeft/);
   assert.match(source, /isPiKvmPageReady/);
-  assert.match(source, /LAYOUT_SHORTCUTS/);
-  assert.match(source, /meta-space/);
+  assert.doesNotMatch(source, /LAYOUT_SHORTCUTS|meta-space|alt-shift/);
 });
 
 test("bridge uses PiKVM controls and guards clipboard sends", () => {
@@ -41,8 +40,8 @@ test("bridge uses PiKVM controls and guards clipboard sends", () => {
   assert.match(source, /hid-pak-ask-switch/);
   assert.match(source, /DUPLICATE_WINDOW_MS/);
   assert.match(source, /MAX_TEXT_LENGTH/);
-  assert.match(source, /autoLayout/);
-  assert.match(source, /switchTargetLayout/);
+  assert.match(source, /autoKeymap/);
+  assert.doesNotMatch(source, /switchTargetLayout|layoutShortcut/);
   assert.doesNotMatch(source, /fetch\(|XMLHttpRequest|console\./);
 });
 
@@ -59,12 +58,13 @@ test("language splitter preserves text and separates Cyrillic from Latin", () =>
   ]);
 });
 
-test("popup exposes explicit auto-layout settings", () => {
+test("popup exposes automatic PiKVM keymap settings", () => {
   const html = read("popup.html");
   const source = read("popup.js");
-  assert.match(html, /Automatically switch RU\/EN/);
-  assert.match(html, /Alt \+ Shift/);
-  assert.match(source, /autoLayout: true/);
+  assert.match(html, /Automatically select PiKVM ru\/en-us keymap/);
+  assert.match(html, /never switches the keyboard layout/);
+  assert.doesNotMatch(html, /Alt \+ Shift|Win\/Super/);
+  assert.match(source, /autoKeymap: true/);
   assert.match(source, /chrome\.storage\.local/);
 });
 

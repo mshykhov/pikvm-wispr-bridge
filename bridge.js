@@ -1,21 +1,14 @@
 (() => {
   const MESSAGE_TYPE = "pikvm-wispr-send";
-  const LAYOUT_MESSAGE_TYPE = "pikvm-wispr-layout-shortcut";
   const DUPLICATE_WINDOW_MS = 2000;
   const MAX_TEXT_LENGTH = 20000;
   const PASTE_TIMEOUT_MS = 30000;
   const DEFAULT_SETTINGS = {
-    autoLayout: true,
-    layoutShortcut: "alt-shift",
-    layoutDelayMs: 250,
+    autoKeymap: true,
   };
   let lastText = "";
   let lastSentAt = 0;
   let sending = false;
-
-  function sleep(milliseconds) {
-    return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
-  }
 
   function getSettings() {
     return new Promise((resolve) => {
@@ -102,14 +95,6 @@
     await waitForPasteCompletion(textarea, sendButton);
   }
 
-  async function switchTargetLayout(shortcut, delayMs) {
-    window.postMessage({
-      type: LAYOUT_MESSAGE_TYPE,
-      shortcut,
-    }, window.location.origin);
-    await sleep(delayMs);
-  }
-
   async function sendText(text, settings) {
     const controls = getPiKvmControls();
     const { keymapSelector } = controls;
@@ -117,26 +102,21 @@
     const segments = PiKVMWisprLanguages.splitByKeymap(text, currentKeymap);
     const textKeymaps = new Set(segments.map((segment) => segment.keymap));
 
-    if (!settings.autoLayout) {
+    if (!settings.autoKeymap) {
       if (textKeymaps.size > 1) {
-        throw new Error("Mixed RU/EN text: enable Auto layout in the extension popup");
+        throw new Error("Mixed RU/EN text: enable Auto PiKVM keymap");
       }
       const requiredKeymap = segments[0]?.keymap || currentKeymap;
       if (requiredKeymap !== currentKeymap) {
-        throw new Error(`Select ${requiredKeymap} in PiKVM or enable Auto layout`);
+        throw new Error(`Select ${requiredKeymap} in PiKVM or enable Auto keymap`);
       }
       await sendSegment(text, controls);
       return currentKeymap;
     }
 
-    if (currentKeymap !== "ru" && currentKeymap !== "en-us") {
-      throw new Error("Select ru or en-us in PiKVM to synchronize the initial layout");
-    }
-
     let activeKeymap = currentKeymap;
     for (const segment of segments) {
       if (segment.keymap !== activeKeymap) {
-        await switchTargetLayout(settings.layoutShortcut, settings.layoutDelayMs);
         selectKeymap(keymapSelector, segment.keymap);
         activeKeymap = segment.keymap;
       }
@@ -166,7 +146,7 @@
       const finalKeymap = await sendText(text, settings);
       lastText = text;
       lastSentAt = now;
-      showStatus(`Sent ${text.length} characters; final layout ${finalKeymap}`);
+      showStatus(`Sent ${text.length} characters; PiKVM keymap ${finalKeymap}`);
     } catch (error) {
       showStatus(error.message || "Could not send transcript", true);
     } finally {

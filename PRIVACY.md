@@ -11,10 +11,8 @@ PiKVM `/kvm/` page is active.
 Transcript text is placed into PiKVM's existing Paste-as-Keys control. It is not
 stored by the extension, written to logs, or sent to another service.
 
-The extension stores only three local preferences: whether automatic layout
-switching is enabled, which allowlisted keyboard shortcut switches the target
-layout, and how long to wait after switching. Transcript text is never written
-to extension storage.
+The extension stores only whether automatic PiKVM keymap selection is enabled.
+Transcript text is never written to extension storage.
 
 The optional Hammerspoon helper observes the next clipboard change only after a
 long `Fn` hold while a PiKVM tab is active. It stops after one text change or a
