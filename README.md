@@ -119,7 +119,8 @@ active target layout can type. See [docs/LAYOUTS.md](docs/LAYOUTS.md).
 The extension:
 
 - runs only on URLs whose path starts with `/kvm/`;
-- reads the clipboard only after `Cmd+V` or `Ctrl+V` in an active PiKVM page;
+- receives clipboard text only from a standard `paste` event in an active
+  PiKVM page and does not request clipboard-read permission;
 - does not log, store, or send transcript text anywhere except the PiKVM page;
 - stores only the automatic PiKVM keymap toggle;
 - ignores duplicate sends within two seconds;

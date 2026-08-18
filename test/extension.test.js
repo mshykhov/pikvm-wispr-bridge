@@ -4,6 +4,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const childProcess = require("node:child_process");
 const os = require("node:os");
+const vm = require("node:vm");
 
 const root = path.resolve(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
@@ -14,8 +15,8 @@ test("manifest is portable and narrowly scoped to PiKVM paths", () => {
   const matches = manifest.content_scripts.flatMap((script) => script.matches);
 
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, "0.3.0");
-  assert.deepEqual(manifest.permissions, ["clipboardRead", "storage"]);
+  assert.equal(manifest.version, "0.3.1");
+  assert.deepEqual(manifest.permissions, ["storage"]);
   assert.ok(matches.every((match) => match.includes("/kvm/")));
   assert.doesNotMatch(JSON.stringify(manifest), /panga-bleak|pikvm-v4/i);
 });
@@ -28,7 +29,67 @@ test("interceptor supports the local OS paste shortcuts", () => {
   assert.match(source, /MetaLeft/);
   assert.match(source, /ControlLeft/);
   assert.match(source, /isPiKvmPageReady/);
+  assert.match(source, /clipboardData/);
   assert.doesNotMatch(source, /LAYOUT_SHORTCUTS|meta-space|alt-shift/);
+});
+
+test("interceptor forwards paste event data without cancelling the keydown default", () => {
+  const listeners = new Map();
+  const messages = [];
+  const keyboardTarget = { onkeyup() {} };
+  const controls = new Set([
+    "hid-pak-text",
+    "hid-pak-button",
+  ]);
+  const window = {
+    location: { origin: "https://pikvm.example" },
+    addEventListener(type, listener) {
+      listeners.set(type, listener);
+    },
+    postMessage(message, origin) {
+      messages.push({ message, origin });
+    },
+  };
+  const document = {
+    getElementById(id) {
+      if (id === "stream-window") return keyboardTarget;
+      if (controls.has(id)) return {};
+      return null;
+    },
+  };
+
+  vm.runInNewContext(read("intercept.js"), {
+    document,
+    KeyboardEvent: class KeyboardEvent {},
+    window,
+  });
+
+  let keydownPrevented = false;
+  listeners.get("keydown")({
+    altKey: false,
+    code: "KeyV",
+    ctrlKey: false,
+    metaKey: true,
+    preventDefault() { keydownPrevented = true; },
+    repeat: false,
+    shiftKey: false,
+    stopImmediatePropagation() {},
+    stopPropagation() {},
+  });
+  assert.equal(keydownPrevented, false);
+
+  let pastePrevented = false;
+  listeners.get("paste")({
+    clipboardData: { getData: () => "clipboard text" },
+    preventDefault() { pastePrevented = true; },
+    stopImmediatePropagation() {},
+    stopPropagation() {},
+  });
+  assert.equal(pastePrevented, true);
+  assert.equal(JSON.stringify(messages), JSON.stringify([{
+    message: { type: "pikvm-wispr-send", text: "clipboard text" },
+    origin: "https://pikvm.example",
+  }]));
 });
 
 test("bridge uses PiKVM controls and guards clipboard sends", () => {
@@ -42,7 +103,7 @@ test("bridge uses PiKVM controls and guards clipboard sends", () => {
   assert.match(source, /MAX_TEXT_LENGTH/);
   assert.match(source, /autoKeymap/);
   assert.doesNotMatch(source, /switchTargetLayout|layoutShortcut/);
-  assert.doesNotMatch(source, /fetch\(|XMLHttpRequest|console\./);
+  assert.doesNotMatch(source, /navigator\.clipboard|readText|fetch\(|XMLHttpRequest|console\./);
 });
 
 test("language splitter preserves text and separates Cyrillic from Latin", () => {

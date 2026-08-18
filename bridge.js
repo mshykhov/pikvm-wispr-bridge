@@ -126,12 +126,11 @@
     return activeKeymap;
   }
 
-  async function handlePaste() {
+  async function handlePaste(text) {
     if (sending) return;
     sending = true;
 
     try {
-      const text = await navigator.clipboard.readText();
       if (!text) throw new Error("Flow transcript is empty");
       if (text.length > MAX_TEXT_LENGTH) {
         throw new Error(`Transcript exceeds ${MAX_TEXT_LENGTH} characters`);
@@ -158,6 +157,7 @@
     if (event.source !== window) return;
     if (event.origin !== window.location.origin) return;
     if (event.data?.type !== MESSAGE_TYPE) return;
-    handlePaste();
+    if (typeof event.data.text !== "string") return;
+    handlePaste(event.data.text);
   });
 })();

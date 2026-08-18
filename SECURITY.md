@@ -10,7 +10,8 @@ is enabled for the repository.
 
 - The extension activates only on `/kvm/` pages and verifies PiKVM Text controls
   before intercepting paste.
-- Clipboard text is read only in response to a paste shortcut.
+- Clipboard text is accepted only from the browser's standard `paste` event;
+  the extension does not request clipboard-read permission.
 - No PiKVM credentials are stored by the extension; it uses the authenticated
   browser session and PiKVM's own Web UI.
 - Automatic keymap selection changes only PiKVM's existing `ru`/`en-us`

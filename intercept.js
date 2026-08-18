@@ -41,11 +41,21 @@
     if (event.repeat || (!isMacPaste && !isOtherPaste)) return;
     if (!isPiKvmPageReady()) return;
 
-    event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
     if (isMacPaste) releaseRemoteModifier("MetaLeft", "Meta");
     if (isOtherPaste) releaseRemoteModifier("ControlLeft", "Control");
-    window.postMessage({ type: MESSAGE_TYPE }, window.location.origin);
+  }, true);
+
+  window.addEventListener("paste", (event) => {
+    if (!isPiKvmPageReady()) return;
+
+    const text = event.clipboardData?.getData("text/plain") || "";
+    if (!text) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    window.postMessage({ type: MESSAGE_TYPE, text }, window.location.origin);
   }, true);
 })();
