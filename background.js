@@ -23,7 +23,7 @@ async function ensureOffscreenDocument() {
   creatingOffscreenDocument = chrome.offscreen.createDocument({
     url: OFFSCREEN_PATH,
     reasons: [chrome.offscreen.Reason.CLIPBOARD],
-    justification: "Read text after a paste shortcut on an active PiKVM page",
+    justification: "Read text after the private bridge trigger on an active PiKVM page",
   });
   try {
     await creatingOffscreenDocument;

@@ -15,7 +15,7 @@ test("manifest is portable and narrowly scoped to PiKVM paths", () => {
   const matches = manifest.content_scripts.flatMap((script) => script.matches);
 
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, "0.4.0");
+  assert.equal(manifest.version, "0.4.1");
   assert.deepEqual(manifest.permissions, ["clipboardRead", "offscreen", "storage"]);
   assert.equal(manifest.background.service_worker, "background.js");
   assert.ok(matches.every((match) => match.includes("/kvm/")));
@@ -40,19 +40,17 @@ test("extension packages an offscreen clipboard fallback", () => {
   assert.match(packageScript, /offscreen\.js/);
 });
 
-test("interceptor supports the local OS paste shortcuts", () => {
+test("interceptor reserves only the bridge-only F18 trigger", () => {
   const source = read("intercept.js");
 
-  assert.match(source, /isMacPaste/);
-  assert.match(source, /isOtherPaste/);
-  assert.match(source, /MetaLeft/);
-  assert.match(source, /ControlLeft/);
+  assert.match(source, /event\.code !== "F18"/);
   assert.match(source, /isPiKvmPageReady/);
   assert.doesNotMatch(source, /clipboardData|postMessage/);
+  assert.doesNotMatch(source, /KeyV|metaKey|ctrlKey/);
   assert.doesNotMatch(source, /LAYOUT_SHORTCUTS|meta-space|alt-shift/);
 });
 
-test("interceptor blocks PiKVM key handling without cancelling browser paste", () => {
+test("interceptor blocks F18 but leaves ordinary remote paste shortcuts alone", () => {
   const listeners = new Map();
   const keyboardTarget = { onkeyup() {} };
   const controls = new Set([
@@ -79,24 +77,36 @@ test("interceptor blocks PiKVM key handling without cancelling browser paste", (
     window,
   });
 
-  let keydownPrevented = false;
-  let propagationStopped = false;
-  let immediatePropagationStopped = false;
-  listeners.get("keydown")({
+  const dispatch = (overrides) => {
+    const state = { propagationStopped: false };
+    listeners.get("keydown")({
+      code: "KeyV",
+      repeat: false,
+      stopPropagation() { state.propagationStopped = true; },
+      ...overrides,
+    });
+    return state;
+  };
+
+  const macPaste = dispatch({
     altKey: false,
     code: "KeyV",
     ctrlKey: false,
     metaKey: true,
-    preventDefault() { keydownPrevented = true; },
-    repeat: false,
     shiftKey: false,
-    stopImmediatePropagation() { immediatePropagationStopped = true; },
-    stopPropagation() { propagationStopped = true; },
   });
-  assert.equal(keydownPrevented, false);
-  assert.equal(propagationStopped, true);
-  assert.equal(immediatePropagationStopped, false);
-  assert.equal(listeners.has("paste"), false);
+  const remotePaste = dispatch({
+    altKey: false,
+    code: "KeyV",
+    ctrlKey: true,
+    metaKey: false,
+    shiftKey: false,
+  });
+  const bridgeTrigger = dispatch({ code: "F18" });
+
+  assert.equal(macPaste.propagationStopped, false);
+  assert.equal(remotePaste.propagationStopped, false);
+  assert.equal(bridgeTrigger.propagationStopped, true);
 });
 
 test("bridge uses PiKVM controls and guards clipboard sends", () => {
@@ -114,8 +124,9 @@ test("bridge uses PiKVM controls and guards clipboard sends", () => {
   assert.doesNotMatch(source, /if \(sending\) return/);
   assert.match(source, /chrome\.runtime\.sendMessage/);
   assert.match(source, /event\.isTrusted/);
-  assert.match(source, /addEventListener\("paste"/);
-  assert.match(source, /clipboardData/);
+  assert.match(source, /event\.code !== "F18"/);
+  assert.doesNotMatch(source, /addEventListener\("paste"/);
+  assert.doesNotMatch(source, /clipboardData|KeyV|metaKey|ctrlKey/);
   assert.doesNotMatch(source, /switchTargetLayout|layoutShortcut/);
   assert.doesNotMatch(source, /navigator\.clipboard|readText|fetch\(|XMLHttpRequest|console\./);
 });
@@ -190,4 +201,13 @@ test("macOS helper requires the exact PiKVM path boundary", () => {
   const source = read("extras/PiKVMWispr.spoon/init.lua");
   assert.ok(source.includes('url:match("^https?://[^/]+/kvm/")'));
   assert.doesNotMatch(source, /\/kvm\/\?"/);
+});
+
+test("macOS helper uses a private trigger and suppresses Flow's own Cmd+V", () => {
+  const source = read("extras/PiKVMWispr.spoon/init.lua");
+
+  assert.match(source, /keyStroke\(\{\}, "f18", 0\)/);
+  assert.match(source, /pasteShortcutWatcher/);
+  assert.match(source, /keyCode == 9/);
+  assert.doesNotMatch(source, /keyStroke\(\{"cmd"\}, "v", 0\)/);
 });

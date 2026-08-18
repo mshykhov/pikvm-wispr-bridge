@@ -10,21 +10,6 @@
   let lastSentAt = 0;
   let processingQueue = false;
   const pasteQueue = [];
-  let clipboardFallbackTimer = null;
-
-  function isPasteShortcut(event) {
-    const isMacPaste = event.code === "KeyV"
-      && event.metaKey
-      && !event.altKey
-      && !event.ctrlKey
-      && !event.shiftKey;
-    const isOtherPaste = event.code === "KeyV"
-      && event.ctrlKey
-      && !event.altKey
-      && !event.metaKey
-      && !event.shiftKey;
-    return isMacPaste || isOtherPaste;
-  }
 
   function getSettings() {
     return new Promise((resolve) => {
@@ -74,13 +59,6 @@
       && document.getElementById("hid-pak-button")
       && document.getElementById("hid-pak-keymap-selector"),
     );
-  }
-
-  function clearClipboardFallback() {
-    if (clipboardFallbackTimer !== null) {
-      window.clearTimeout(clipboardFallbackTimer);
-      clipboardFallbackTimer = null;
-    }
   }
 
   function selectKeymap(selector, keymap) {
@@ -196,12 +174,10 @@
   }
 
   window.addEventListener("keydown", (event) => {
-    if (!event.isTrusted || event.repeat || !isPasteShortcut(event)) return;
+    if (!event.isTrusted || event.repeat || event.code !== "F18") return;
     if (!isPiKvmPageReady()) return;
 
-    clearClipboardFallback();
-    clipboardFallbackTimer = window.setTimeout(async () => {
-      clipboardFallbackTimer = null;
+    window.setTimeout(async () => {
       try {
         const response = await chrome.runtime.sendMessage({
           target: "background",
@@ -210,23 +186,10 @@
         if (!response?.ok) {
           throw new Error(response?.error || "Could not read clipboard");
         }
-        await handlePaste(response.text);
+        handlePaste(response.text);
       } catch (error) {
         showStatus(error.message || "Could not read clipboard", true);
       }
     }, 0);
-  }, true);
-
-  window.addEventListener("paste", (event) => {
-    if (!isPiKvmPageReady()) return;
-    clearClipboardFallback();
-
-    const text = event.clipboardData?.getData("text/plain") || "";
-    if (!text) return;
-
-    event.preventDefault();
-    event.stopPropagation();
-    event.stopImmediatePropagation();
-    handlePaste(text);
   }, true);
 })();

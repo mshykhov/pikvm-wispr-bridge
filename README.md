@@ -1,8 +1,8 @@
 # Wispr Flow to PiKVM
 
 Speak into Wispr Flow and have the transcript typed into the active computer
-behind PiKVM. The extension turns Flow's normal paste action into PiKVM's
-Paste-as-Keys HID input.
+behind PiKVM. The macOS helper and browser extension route the transcript into
+PiKVM's Paste-as-Keys HID input.
 
 ```text
 Hold Flow shortcut -> speak -> release -> PiKVM types the transcript
@@ -14,11 +14,12 @@ other focused text fields.
 
 ## Quick start on macOS
 
-Reliable one-action operation needs two small pieces:
+One-action operation needs two small pieces:
 
-1. The browser extension routes paste into PiKVM Paste-as-Keys.
-2. The Hammerspoon helper handles the case where Flow copies a transcript but
-   does not paste because the PiKVM canvas is not a text field.
+1. The Hammerspoon helper waits for Flow's next transcript and emits a private
+   bridge trigger.
+2. The browser extension reads the Mac clipboard only after that trigger and
+   routes the text into PiKVM Paste-as-Keys.
 
 ### 1. Load the browser extension
 
@@ -58,15 +59,10 @@ To remove the helper:
 ./scripts/uninstall-macos.sh
 ```
 
-The extension accepts the paste shortcut Flow generates for the local OS:
-
-- macOS: `Cmd+V`
-- Windows and Linux: `Ctrl+V`
-
-The normal browser `paste` event is used when available. If the focused PiKVM
-canvas does not produce that event, a Manifest V3 offscreen document reads the
-clipboard after the trusted paste shortcut. This fallback works independently
-of whether the focus is on the video, canvas, or Text panel.
+The helper uses `F18` as a private internal trigger. You never press it yourself.
+Normal `Cmd+V` and `Ctrl+V` are not intercepted, so copy and paste inside the
+computer behind PiKVM continue to use that computer's own clipboard. A Manifest
+V3 offscreen document reads the Mac clipboard only after the private trigger.
 
 ## Use
 
@@ -96,16 +92,15 @@ remote computer.
 ## How the macOS `Fn` fallback works
 
 Flow may decide that the PiKVM canvas is not a text field and copy the transcript
-without issuing `Cmd+V`. The optional Hammerspoon Spoon in
+without issuing a usable paste command. The Hammerspoon Spoon in
 [`extras/PiKVMWispr.spoon`](extras/PiKVMWispr.spoon) handles that case while
 preserving the same one-action workflow:
 
 After a long `Fn` hold, the Spoon waits for exactly one clipboard change. It
-presses `Cmd+V` only if a supported Chromium browser is still frontmost and its
-active URL is a `/kvm/` page. It does not interfere with a short `Fn` tap.
-
-The extension alone is sufficient when Flow already generates `Cmd+V`. The
-helper makes the behavior reliable when Flow only copies the transcript.
+sends the private bridge trigger only if a supported Chromium browser is still
+frontmost and its active URL is a `/kvm/` page. During that short armed window it
+suppresses Flow's own `Cmd+V` to avoid a second action. It does not interfere
+with a short `Fn` tap or normal paste outside an active dictation.
 
 ## Keyboard layouts
 
@@ -124,9 +119,8 @@ active target layout can type. See [docs/LAYOUTS.md](docs/LAYOUTS.md).
 The extension:
 
 - runs only on URLs whose path starts with `/kvm/`;
-- receives clipboard text from a standard `paste` event when available;
-- uses clipboard-read permission only as a fallback after a trusted paste
-  shortcut on a fully loaded PiKVM page;
+- reads clipboard text only after the trusted private trigger on a fully loaded
+  PiKVM page;
 - does not log, store, or send transcript text anywhere except the PiKVM page;
 - stores only the automatic PiKVM keymap toggle;
 - ignores duplicate sends within two seconds;
@@ -149,11 +143,10 @@ The packaged extension is written to `dist/pikvm-wispr-bridge.zip`.
 
 - Chromium 109+ browsers using Manifest V3 and the Offscreen API
 - Stock PiKVM Web UI with `/kvm/`
-- Wispr Flow on macOS and Windows
+- Wispr Flow on macOS
 
-The browser extension supports Windows and Linux, but the automatic
-clipboard-change fallback is currently macOS-only. Safari and Firefox are not
-currently packaged.
+The private one-action trigger currently requires the macOS Hammerspoon helper.
+Safari and Firefox are not currently packaged.
 
 ## License
 

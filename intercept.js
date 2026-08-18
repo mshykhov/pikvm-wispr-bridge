@@ -13,34 +13,10 @@
     );
   }
 
-  function releaseRemoteModifier(code, key) {
-    const target = getPiKvmKeyboardTarget();
-
-    if (typeof target?.onkeyup === "function") {
-      target.onkeyup(new KeyboardEvent("keyup", {
-        code,
-        key,
-      }));
-    }
-  }
-
   window.addEventListener("keydown", (event) => {
-    const isMacPaste = event.code === "KeyV"
-      && event.metaKey
-      && !event.altKey
-      && !event.ctrlKey
-      && !event.shiftKey;
-    const isOtherPaste = event.code === "KeyV"
-      && event.ctrlKey
-      && !event.altKey
-      && !event.metaKey
-      && !event.shiftKey;
-
-    if (event.repeat || (!isMacPaste && !isOtherPaste)) return;
+    if (event.repeat || event.code !== "F18") return;
     if (!isPiKvmPageReady()) return;
 
     event.stopPropagation();
-    if (isMacPaste) releaseRemoteModifier("MetaLeft", "Meta");
-    if (isOtherPaste) releaseRemoteModifier("ControlLeft", "Control");
   }, true);
 })();

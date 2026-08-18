@@ -2,13 +2,14 @@ local obj = {}
 obj.__index = obj
 
 obj.name = "PiKVMWispr"
-obj.version = "0.4.0"
+obj.version = "0.4.1"
 obj.author = "Myron Shykhov"
 obj.homepage = "https://github.com/mshykhov/pikvm-wispr-bridge"
 obj.license = "MIT"
 
 obj.minimumHoldSeconds = 0.4
 obj.clipboardTimeoutSeconds = 20
+obj.flowPasteSuppressionSeconds = 1
 obj.browserNames = {
     ["Vivaldi"] = true,
     ["Google Chrome"] = true,
@@ -21,6 +22,9 @@ local fnDownAt = nil
 local fnHadOtherModifier = false
 local clipboardWatcher = nil
 local timeoutTimer = nil
+local pasteShortcutWatcher = nil
+local suppressionTimer = nil
+local bridgeArmed = false
 
 local function escapeAppleScript(value)
     return value:gsub("\\", "\\\\"):gsub('"', '\\"')
@@ -42,16 +46,30 @@ function obj:isPiKvmFrontmost()
         and url:match("^https?://[^/]+/kvm/") ~= nil
 end
 
-function obj:disarm()
+function obj:stopWaiting()
     if clipboardWatcher then clipboardWatcher:stop() end
     if timeoutTimer then timeoutTimer:stop() end
     timeoutTimer = nil
+end
+
+function obj:stopPasteSuppression()
+    bridgeArmed = false
+    if pasteShortcutWatcher then pasteShortcutWatcher:stop() end
+    if suppressionTimer then suppressionTimer:stop() end
+    suppressionTimer = nil
+end
+
+function obj:disarm()
+    self:stopWaiting()
+    self:stopPasteSuppression()
 end
 
 function obj:arm()
     if not self:isPiKvmFrontmost() then return end
 
     self:disarm()
+    bridgeArmed = true
+    pasteShortcutWatcher:start()
     clipboardWatcher:start()
     timeoutTimer = hs.timer.doAfter(self.clipboardTimeoutSeconds, function()
         self:disarm()
@@ -64,14 +82,33 @@ function obj:start()
     clipboardWatcher = hs.pasteboard.watcher.new(function(value)
         if type(value) ~= "string" or value == "" then return end
 
-        self:disarm()
+        self:stopWaiting()
         if not self:isPiKvmFrontmost() then
+            self:stopPasteSuppression()
             hs.alert.show("PiKVM transcript not sent: the KVM tab is not active")
             return
         end
 
-        hs.eventtap.keyStroke({"cmd"}, "v", 0)
+        hs.eventtap.keyStroke({}, "f18", 0)
+        suppressionTimer = hs.timer.doAfter(self.flowPasteSuppressionSeconds, function()
+            self:stopPasteSuppression()
+        end)
     end):stop()
+
+    pasteShortcutWatcher = hs.eventtap.new(
+        {hs.eventtap.event.types.keyDown, hs.eventtap.event.types.keyUp},
+        function(event)
+            if not bridgeArmed then return false end
+
+            local flags = event:getFlags()
+            local keyCode = event:getKeyCode()
+            return keyCode == 9
+                and flags.cmd
+                and not flags.alt
+                and not flags.ctrl
+                and not flags.shift
+        end
+    ):stop()
 
     self.fnWatcher = hs.eventtap.new(
         {hs.eventtap.event.types.flagsChanged},
@@ -113,6 +150,8 @@ function obj:stop()
     self.fnWatcher = nil
     if clipboardWatcher then clipboardWatcher:stop() end
     clipboardWatcher = nil
+    if pasteShortcutWatcher then pasteShortcutWatcher:stop() end
+    pasteShortcutWatcher = nil
     return self
 end
 
