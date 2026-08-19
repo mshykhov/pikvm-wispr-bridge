@@ -63,6 +63,25 @@
     );
   }
 
+  async function readClipboard() {
+    const runtime = globalThis.chrome?.runtime;
+    if (typeof runtime?.sendMessage !== "function") {
+      throw new Error("Extension updated; reload the PiKVM tab");
+    }
+
+    try {
+      return await runtime.sendMessage({
+        target: "background",
+        type: CLIPBOARD_MESSAGE_TYPE,
+      });
+    } catch (error) {
+      if (/Extension context invalidated/i.test(error?.message || "")) {
+        throw new Error("Extension updated; reload the PiKVM tab");
+      }
+      throw error;
+    }
+  }
+
   function selectKeymap(selector, keymap) {
     const available = [...selector.options].some((option) => option.value === keymap);
     if (!available) throw new Error(`PiKVM keymap ${keymap} is unavailable`);
@@ -182,10 +201,7 @@
 
     window.setTimeout(async () => {
       try {
-        const response = await chrome.runtime.sendMessage({
-          target: "background",
-          type: CLIPBOARD_MESSAGE_TYPE,
-        });
+        const response = await readClipboard();
         if (!response?.ok) {
           throw new Error(response?.error || "Could not read clipboard");
         }

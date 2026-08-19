@@ -15,7 +15,7 @@ test("manifest is portable and narrowly scoped to PiKVM paths", () => {
   const matches = manifest.content_scripts.flatMap((script) => script.matches);
 
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, "0.4.2");
+  assert.equal(manifest.version, "0.4.3");
   assert.deepEqual(manifest.permissions, ["clipboardRead", "offscreen", "storage"]);
   assert.equal(manifest.background.service_worker, "background.js");
   assert.ok(matches.every((match) => match.includes("/kvm/")));
@@ -122,8 +122,11 @@ test("bridge uses PiKVM controls and guards clipboard sends", () => {
   assert.match(source, /isPiKvmPageReady/);
   assert.match(source, /pasteQueue/);
   assert.match(source, /Sending \$\{text\.length\} characters/);
+  assert.match(source, /Extension updated; reload the PiKVM tab/);
+  assert.match(source, /Extension context invalidated/);
   assert.doesNotMatch(source, /if \(sending\) return/);
-  assert.match(source, /chrome\.runtime\.sendMessage/);
+  assert.match(source, /globalThis\.chrome\?\.runtime/);
+  assert.match(source, /runtime\.sendMessage/);
   assert.match(source, /event\.isTrusted/);
   assert.match(source, /event\.code !== "F18"/);
   assert.doesNotMatch(source, /addEventListener\("paste"/);
