@@ -15,7 +15,7 @@ test("manifest is portable and narrowly scoped to PiKVM paths", () => {
   const matches = manifest.content_scripts.flatMap((script) => script.matches);
 
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, "0.4.3");
+  assert.equal(manifest.version, "0.4.4");
   assert.deepEqual(manifest.permissions, ["clipboardRead", "offscreen", "storage"]);
   assert.equal(manifest.background.service_worker, "background.js");
   assert.ok(matches.every((match) => match.includes("/kvm/")));
@@ -133,6 +133,101 @@ test("bridge uses PiKVM controls and guards clipboard sends", () => {
   assert.doesNotMatch(source, /clipboardData|KeyV|metaKey|ctrlKey/);
   assert.doesNotMatch(source, /switchTargetLayout|layoutShortcut/);
   assert.doesNotMatch(source, /navigator\.clipboard|readText|fetch\(|XMLHttpRequest|console\./);
+});
+
+test("bridge replaces transcript line breaks before sending", async () => {
+  const listeners = new Map();
+  const sent = [];
+  let status = null;
+  let timerId = 0;
+  const textarea = {
+    value: "",
+    dispatchEvent() {},
+  };
+  const sendButton = {
+    disabled: false,
+    click() {
+      sent.push(textarea.value);
+      textarea.value = "";
+    },
+  };
+  const confirmation = { checked: true };
+  const keymapSelector = {
+    value: "en-us",
+    options: [{ value: "en-us" }, { value: "ru" }],
+    dispatchEvent() {},
+  };
+  const controls = {
+    "hid-pak-ask-switch": confirmation,
+    "hid-pak-button": sendButton,
+    "hid-pak-keymap-selector": keymapSelector,
+    "hid-pak-text": textarea,
+  };
+  const document = {
+    documentElement: {
+      appendChild(element) { status = element; },
+    },
+    createElement() {
+      return {
+        style: {},
+        remove() {
+          if (status === this) status = null;
+        },
+      };
+    },
+    getElementById(id) {
+      if (id === "pikvm-wispr-status") return status;
+      return controls[id] || null;
+    },
+  };
+  const window = {
+    addEventListener(type, listener) { listeners.set(type, listener); },
+    clearInterval() {},
+    setInterval(callback) {
+      queueMicrotask(callback);
+      timerId += 1;
+      return timerId;
+    },
+    setTimeout(callback, delay) {
+      timerId += 1;
+      if (delay === 0) queueMicrotask(callback);
+      return timerId;
+    },
+  };
+  const chrome = {
+    runtime: {
+      async sendMessage() {
+        return {
+          ok: true,
+          text: "first\r\n second\nthird\rfourth\u2028fifth\u2029sixth",
+        };
+      },
+    },
+    storage: {
+      local: {
+        get(defaults, callback) { callback(defaults); },
+      },
+    },
+  };
+
+  vm.runInNewContext(read("bridge.js"), {
+    chrome,
+    document,
+    Event: class Event {},
+    PiKVMWisprLanguages: languages,
+    queueMicrotask,
+    window,
+  });
+
+  listeners.get("keydown")({
+    code: "F18",
+    isTrusted: true,
+    repeat: false,
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(sent, ["first second third fourth fifth sixth"]);
+  assert.equal(confirmation.checked, true);
 });
 
 test("language splitter preserves text and separates Cyrillic from Latin", () => {

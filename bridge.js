@@ -82,6 +82,10 @@
     }
   }
 
+  function removeLineBreaks(text) {
+    return text.replace(/[ \t]*[\r\n\u2028\u2029]+[ \t]*/g, " ");
+  }
+
   function selectKeymap(selector, keymap) {
     const available = [...selector.options].some((option) => option.value === keymap);
     if (!available) throw new Error(`PiKVM keymap ${keymap} is unavailable`);
@@ -162,6 +166,9 @@
       if (text.length > MAX_TEXT_LENGTH) {
         throw new Error(`Transcript exceeds ${MAX_TEXT_LENGTH} characters`);
       }
+
+      text = removeLineBreaks(text);
+      if (!text.trim()) throw new Error("Flow transcript is empty");
 
       const now = Date.now();
       if (text === lastText && now - lastSentAt < DUPLICATE_WINDOW_MS) {

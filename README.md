@@ -75,7 +75,9 @@ offscreen document reads the Mac clipboard only after the private trigger.
    PiKVM confirms completion.
 
 The extension temporarily bypasses PiKVM's paste confirmation for this action;
-it does not change the saved confirmation preference.
+it does not change the saved confirmation preference. Line breaks in a Flow
+transcript are replaced with spaces, so dictation never sends `Enter` to the
+target. Press `Enter` manually after reviewing the complete command.
 
 ## Automatic PiKVM keymap selection
 

@@ -33,3 +33,10 @@ when the target stays in one layout.
 
 Emoji and some typographic characters may not exist in the selected hardware
 keymap and should be tested separately.
+
+## Line breaks
+
+The bridge replaces every transcript line break with a single space before
+using PiKVM Paste-as-Keys. It never sends `Enter` from dictated text. This keeps
+multi-line Flow output from executing a partial command in a terminal; the user
+submits the complete command manually.
