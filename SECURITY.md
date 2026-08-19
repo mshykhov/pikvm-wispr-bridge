@@ -18,7 +18,8 @@ is enabled for the repository.
 - Automatic keymap selection changes only PiKVM's existing `ru`/`en-us`
   selector. It never sends a layout-switch shortcut to the remote computer.
 - The Hammerspoon helper checks both the frontmost browser and active `/kvm/`
-  URL before generating the private trigger.
+  URL, and verifies that the paste event came from the Wispr Flow process,
+  before generating the private trigger.
 
 Only load the extension from a repository or release you trust. A browser
 extension with clipboard permission can read sensitive text if modified

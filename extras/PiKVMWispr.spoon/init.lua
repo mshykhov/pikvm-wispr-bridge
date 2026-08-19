@@ -2,14 +2,11 @@ local obj = {}
 obj.__index = obj
 
 obj.name = "PiKVMWispr"
-obj.version = "0.4.1"
+obj.version = "0.4.2"
 obj.author = "Myron Shykhov"
 obj.homepage = "https://github.com/mshykhov/pikvm-wispr-bridge"
 obj.license = "MIT"
 
-obj.minimumHoldSeconds = 0.4
-obj.clipboardTimeoutSeconds = 20
-obj.flowPasteSuppressionSeconds = 1
 obj.browserNames = {
     ["Vivaldi"] = true,
     ["Google Chrome"] = true,
@@ -17,14 +14,12 @@ obj.browserNames = {
     ["Microsoft Edge"] = true,
 }
 
-local fnKeyCode = 63
-local fnDownAt = nil
-local fnHadOtherModifier = false
-local clipboardWatcher = nil
-local timeoutTimer = nil
-local pasteShortcutWatcher = nil
-local suppressionTimer = nil
-local bridgeArmed = false
+obj.flowBundleIds = {
+    ["com.electron.wispr-flow"] = true,
+    ["com.electron.wispr-flow.accessibility-mac-app"] = true,
+}
+
+local flowPasteWatcher = nil
 
 local function escapeAppleScript(value)
     return value:gsub("\\", "\\\\"):gsub('"', '\\"')
@@ -46,112 +41,50 @@ function obj:isPiKvmFrontmost()
         and url:match("^https?://[^/]+/kvm/") ~= nil
 end
 
-function obj:stopWaiting()
-    if clipboardWatcher then clipboardWatcher:stop() end
-    if timeoutTimer then timeoutTimer:stop() end
-    timeoutTimer = nil
-end
+function obj:isFlowPaste(event)
+    local flags = event:getFlags()
+    if event:getKeyCode() ~= 9
+        or not flags.cmd
+        or flags.alt
+        or flags.ctrl
+        or flags.shift then
+        return false
+    end
 
-function obj:stopPasteSuppression()
-    bridgeArmed = false
-    if pasteShortcutWatcher then pasteShortcutWatcher:stop() end
-    if suppressionTimer then suppressionTimer:stop() end
-    suppressionTimer = nil
-end
-
-function obj:disarm()
-    self:stopWaiting()
-    self:stopPasteSuppression()
-end
-
-function obj:arm()
-    if not self:isPiKvmFrontmost() then return end
-
-    self:disarm()
-    bridgeArmed = true
-    pasteShortcutWatcher:start()
-    clipboardWatcher:start()
-    timeoutTimer = hs.timer.doAfter(self.clipboardTimeoutSeconds, function()
-        self:disarm()
-    end)
+    local sourcePid = event:getProperty(
+        hs.eventtap.event.properties.eventSourceUnixProcessID
+    )
+    local sourceApp = sourcePid and hs.application.applicationForPID(sourcePid) or nil
+    local bundleId = sourceApp and sourceApp:bundleID() or nil
+    return self.flowBundleIds[bundleId] == true
 end
 
 function obj:start()
-    if clipboardWatcher then return self end
+    if flowPasteWatcher then return self end
 
-    clipboardWatcher = hs.pasteboard.watcher.new(function(value)
-        if type(value) ~= "string" or value == "" then return end
-
-        self:stopWaiting()
-        if not self:isPiKvmFrontmost() then
-            self:stopPasteSuppression()
-            hs.alert.show("PiKVM transcript not sent: the KVM tab is not active")
-            return
-        end
-
-        hs.eventtap.keyStroke({}, "f18", 0)
-        suppressionTimer = hs.timer.doAfter(self.flowPasteSuppressionSeconds, function()
-            self:stopPasteSuppression()
-        end)
-    end):stop()
-
-    pasteShortcutWatcher = hs.eventtap.new(
+    flowPasteWatcher = hs.eventtap.new(
         {hs.eventtap.event.types.keyDown, hs.eventtap.event.types.keyUp},
         function(event)
-            if not bridgeArmed then return false end
+            if not self:isFlowPaste(event) then return false end
+            if not self:isPiKvmFrontmost() then return false end
 
-            local flags = event:getFlags()
-            local keyCode = event:getKeyCode()
-            return keyCode == 9
-                and flags.cmd
-                and not flags.alt
-                and not flags.ctrl
-                and not flags.shift
-        end
-    ):stop()
-
-    self.fnWatcher = hs.eventtap.new(
-        {hs.eventtap.event.types.flagsChanged},
-        function(event)
-            local flags = event:getFlags()
-            local keyCode = event:getKeyCode()
-
-            if keyCode == fnKeyCode then
-                if flags.fn then
-                    fnDownAt = hs.timer.secondsSinceEpoch()
-                    fnHadOtherModifier = flags.cmd
-                        or flags.alt
-                        or flags.ctrl
-                        or flags.shift
-                        or false
-                elseif fnDownAt then
-                    local heldFor = hs.timer.secondsSinceEpoch() - fnDownAt
-                    if not fnHadOtherModifier
-                        and heldFor >= self.minimumHoldSeconds then
-                        self:arm()
+            if event:getType() == hs.eventtap.event.types.keyDown then
+                hs.timer.doAfter(0, function()
+                    if self:isPiKvmFrontmost() then
+                        hs.eventtap.keyStroke({}, "f18", 0)
                     end
-                    fnDownAt = nil
-                    fnHadOtherModifier = false
-                end
-            elseif fnDownAt and (flags.cmd or flags.alt or flags.ctrl or flags.shift) then
-                fnHadOtherModifier = true
+                end)
             end
-
-            return false
+            return true
         end
     )
-    self.fnWatcher:start()
+    flowPasteWatcher:start()
     return self
 end
 
 function obj:stop()
-    self:disarm()
-    if self.fnWatcher then self.fnWatcher:stop() end
-    self.fnWatcher = nil
-    if clipboardWatcher then clipboardWatcher:stop() end
-    clipboardWatcher = nil
-    if pasteShortcutWatcher then pasteShortcutWatcher:stop() end
-    pasteShortcutWatcher = nil
+    if flowPasteWatcher then flowPasteWatcher:stop() end
+    flowPasteWatcher = nil
     return self
 end
 

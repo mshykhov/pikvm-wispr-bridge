@@ -7,9 +7,9 @@ USB HID keyboard events to the target.
 
 ## Components
 
-- The Hammerspoon Spoon owns the long-`Fn` gesture, the 20-second clipboard
-  watch, frontmost-browser and `/kvm/` checks, temporary suppression of Flow's
-  `Cmd+V`, and the private `F18` trigger.
+- The Hammerspoon Spoon identifies Flow-generated paste by its macOS process,
+  checks the frontmost browser and `/kvm/` URL, suppresses that paste event, and
+  emits the private `F18` trigger.
 - The main-world content script stops `F18` before PiKVM's remote keyboard
   handler can forward it.
 - The isolated content script validates PiKVM Text controls, requests clipboard
@@ -20,9 +20,10 @@ USB HID keyboard events to the target.
 
 ## Transcript flow
 
-1. A long `Fn` release arms the helper only while a supported browser has an
-   active HTTP(S) `/kvm/` tab.
-2. The next non-empty clipboard change stops the watcher and emits `F18`.
+1. Wispr Flow places its transcript on the clipboard and generates `Cmd+V`.
+2. The helper accepts that event only when its source is Wispr Flow and a
+   supported browser has an active HTTP(S) `/kvm/` tab, then replaces it with
+   `F18`.
 3. The extension validates the loaded PiKVM controls and asks the service worker
    for clipboard text.
 4. The service worker accepts requests only from `/kvm` or `/kvm/...` and reads

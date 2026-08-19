@@ -15,7 +15,7 @@ test("manifest is portable and narrowly scoped to PiKVM paths", () => {
   const matches = manifest.content_scripts.flatMap((script) => script.matches);
 
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, "0.4.1");
+  assert.equal(manifest.version, "0.4.2");
   assert.deepEqual(manifest.permissions, ["clipboardRead", "offscreen", "storage"]);
   assert.equal(manifest.background.service_worker, "background.js");
   assert.ok(matches.every((match) => match.includes("/kvm/")));
@@ -121,6 +121,7 @@ test("bridge uses PiKVM controls and guards clipboard sends", () => {
   assert.match(source, /autoKeymap/);
   assert.match(source, /isPiKvmPageReady/);
   assert.match(source, /pasteQueue/);
+  assert.match(source, /Sending \$\{text\.length\} characters/);
   assert.doesNotMatch(source, /if \(sending\) return/);
   assert.match(source, /chrome\.runtime\.sendMessage/);
   assert.match(source, /event\.isTrusted/);
@@ -203,11 +204,14 @@ test("macOS helper requires the exact PiKVM path boundary", () => {
   assert.doesNotMatch(source, /\/kvm\/\?"/);
 });
 
-test("macOS helper uses a private trigger and suppresses Flow's own Cmd+V", () => {
+test("macOS helper replaces only Wispr Flow paste with the private trigger", () => {
   const source = read("extras/PiKVMWispr.spoon/init.lua");
 
   assert.match(source, /keyStroke\(\{\}, "f18", 0\)/);
-  assert.match(source, /pasteShortcutWatcher/);
-  assert.match(source, /keyCode == 9/);
+  assert.match(source, /eventSourceUnixProcessID/);
+  assert.match(source, /com\.electron\.wispr-flow/);
+  assert.match(source, /flowPasteWatcher/);
+  assert.match(source, /getKeyCode\(\) ~= 9/);
+  assert.doesNotMatch(source, /fnKeyCode|minimumHoldSeconds|clipboardWatcher/);
   assert.doesNotMatch(source, /keyStroke\(\{"cmd"\}, "v", 0\)/);
 });

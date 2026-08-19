@@ -17,7 +17,7 @@
     });
   }
 
-  function showStatus(message, isError = false) {
+  function showStatus(message, isError = false, persistent = false) {
     document.getElementById("pikvm-wispr-status")?.remove();
 
     const status = document.createElement("div");
@@ -37,7 +37,9 @@
     ].join(";");
 
     document.documentElement.appendChild(status);
-    window.setTimeout(() => status.remove(), isError ? 5000 : 2500);
+    if (!persistent) {
+      window.setTimeout(() => status.remove(), isError ? 5000 : 2500);
+    }
   }
 
   function getPiKvmControls() {
@@ -147,6 +149,7 @@
         throw new Error("Duplicate transcript ignored");
       }
 
+      showStatus(`Sending ${text.length} characters...`, false, true);
       const settings = await getSettings();
       const finalKeymap = await sendText(text, settings);
       lastText = text;
