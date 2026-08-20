@@ -1,6 +1,6 @@
 # PiKVM input lock and send status design
 
-Status: proposed
+Status: accepted
 
 ## Goal
 
@@ -34,6 +34,11 @@ synchronously locks remote keyboard input before stopping `F18`. While locked,
 capture-phase listeners stop `keydown` and `keyup` events whose target is a
 PiKVM remote keyboard surface. Other page controls and pointer events continue
 to work.
+
+The controller tracks key presses that PiKVM received before the lock began. A
+matching `keyup` is allowed through once during the lock so an already-forwarded
+modifier or ordinary key cannot remain stuck on the remote machine. New
+`keydown` events and releases for presses blocked during the lock stay blocked.
 
 `bridge.js` continues to own clipboard validation, the send queue, language
 segments, and Paste-as-Keys completion. It publishes only fixed state and
@@ -126,6 +131,7 @@ Automated coverage must prove that:
 
 - `F18` locks synchronously and never reaches PiKVM;
 - remote `keydown` and `keyup` are blocked while locked;
+- a release for a key forwarded before locking remains allowed exactly once;
 - mouse events and keyboard events outside the remote surfaces remain
   unaffected;
 - the button is visible throughout sending;

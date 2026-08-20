@@ -7,3 +7,4 @@ Name new plans `YYYY-MM-DD-topic.md`, mark their final status explicitly, and
 link them here.
 
 - [PiKVM input lock and send status design](2026-08-20-pikvm-input-lock-design.md)
+- [PiKVM input lock implementation plan](2026-08-20-pikvm-input-lock-implementation.md)
