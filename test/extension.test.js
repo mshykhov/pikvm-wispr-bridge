@@ -10,6 +10,47 @@ const root = path.resolve(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 const languages = require(path.join(root, "languages.js"));
 
+function runInterceptor() {
+  const windowListeners = new Map();
+  const documentListeners = new Map();
+  const remoteSurface = { id: "stream-window" };
+  const controls = new Map([
+    ["stream-window", remoteSurface],
+    ["hid-pak-text", {}],
+    ["hid-pak-button", {}],
+  ]);
+  const document = {
+    addEventListener(type, listener) { documentListeners.set(type, listener); },
+    createElement() { return { append() {}, remove() {}, style: {} }; },
+    documentElement: { append() {} },
+    getElementById(id) { return controls.get(id) || null; },
+  };
+  const window = {
+    addEventListener(type, listener) { windowListeners.set(type, listener); },
+    clearInterval() {},
+    clearTimeout() {},
+    setInterval() { return 1; },
+    setTimeout() { return 1; },
+  };
+  vm.runInNewContext(read("intercept.js"), { document, window });
+  return { documentListeners, remoteSurface, windowListeners };
+}
+
+function keyboardEvent(type, code, target) {
+  const state = { defaultPrevented: false, propagationStopped: false };
+  return {
+    code,
+    isTrusted: true,
+    repeat: false,
+    target,
+    type,
+    composedPath: () => [target],
+    preventDefault() { state.defaultPrevented = true; },
+    stopPropagation() { state.propagationStopped = true; },
+    state,
+  };
+}
+
 test("manifest is portable and narrowly scoped to PiKVM paths", () => {
   const manifest = JSON.parse(read("manifest.json"));
   const matches = manifest.content_scripts.flatMap((script) => script.matches);
@@ -43,70 +84,60 @@ test("extension packages an offscreen clipboard fallback", () => {
 test("interceptor reserves only the bridge-only F18 trigger", () => {
   const source = read("intercept.js");
 
-  assert.match(source, /event\.code !== "F18"/);
+  assert.match(source, /event\.code === "F18"/);
   assert.match(source, /isPiKvmPageReady/);
+  assert.match(source, /addEventListener\("keydown"/);
+  assert.match(source, /addEventListener\("keyup"/);
   assert.doesNotMatch(source, /clipboardData|postMessage/);
   assert.doesNotMatch(source, /KeyV|metaKey|ctrlKey/);
   assert.doesNotMatch(source, /LAYOUT_SHORTCUTS|meta-space|alt-shift/);
 });
 
-test("interceptor blocks F18 but leaves ordinary remote paste shortcuts alone", () => {
-  const listeners = new Map();
-  const keyboardTarget = { onkeyup() {} };
-  const controls = new Set([
-    "hid-pak-text",
-    "hid-pak-button",
-  ]);
-  const window = {
-    location: { origin: "https://pikvm.example" },
-    addEventListener(type, listener) {
-      listeners.set(type, listener);
-    },
-  };
-  const document = {
-    getElementById(id) {
-      if (id === "stream-window") return keyboardTarget;
-      if (controls.has(id)) return {};
-      return null;
-    },
-  };
+test("interceptor locks only the PiKVM remote keyboard after F18", () => {
+  const { remoteSurface, windowListeners } = runInterceptor();
+  const keydown = windowListeners.get("keydown");
+  const keyup = windowListeners.get("keyup");
 
-  vm.runInNewContext(read("intercept.js"), {
-    document,
-    KeyboardEvent: class KeyboardEvent {},
-    window,
-  });
+  const beforeLock = keyboardEvent("keydown", "KeyA", remoteSurface);
+  keydown(beforeLock);
+  assert.equal(beforeLock.state.defaultPrevented, false);
 
-  const dispatch = (overrides) => {
-    const state = { propagationStopped: false };
-    listeners.get("keydown")({
-      code: "KeyV",
-      repeat: false,
-      stopPropagation() { state.propagationStopped = true; },
-      ...overrides,
-    });
-    return state;
-  };
+  const triggerDown = keyboardEvent("keydown", "F18", remoteSurface);
+  keydown(triggerDown);
+  assert.equal(triggerDown.state.defaultPrevented, true);
+  assert.equal(triggerDown.state.propagationStopped, true);
 
-  const macPaste = dispatch({
-    altKey: false,
-    code: "KeyV",
-    ctrlKey: false,
-    metaKey: true,
-    shiftKey: false,
-  });
-  const remotePaste = dispatch({
-    altKey: false,
-    code: "KeyV",
-    ctrlKey: true,
-    metaKey: false,
-    shiftKey: false,
-  });
-  const bridgeTrigger = dispatch({ code: "F18" });
+  const triggerUp = keyboardEvent("keyup", "F18", remoteSurface);
+  keyup(triggerUp);
+  assert.equal(triggerUp.state.propagationStopped, true);
 
-  assert.equal(macPaste.propagationStopped, false);
-  assert.equal(remotePaste.propagationStopped, false);
-  assert.equal(bridgeTrigger.propagationStopped, true);
+  for (const type of ["keydown", "keyup"]) {
+    const event = keyboardEvent(type, "KeyB", remoteSurface);
+    windowListeners.get(type)(event);
+    assert.equal(event.state.defaultPrevented, true);
+    assert.equal(event.state.propagationStopped, true);
+  }
+
+  const pageControl = keyboardEvent("keydown", "KeyA", { id: "hid-pak-text" });
+  keydown(pageControl);
+  assert.equal(pageControl.state.defaultPrevented, false);
+});
+
+test("interceptor releases keys that PiKVM received before locking", () => {
+  const { remoteSurface, windowListeners } = runInterceptor();
+  const keydown = windowListeners.get("keydown");
+  const keyup = windowListeners.get("keyup");
+
+  keydown(keyboardEvent("keydown", "MetaRight", remoteSurface));
+  keydown(keyboardEvent("keydown", "F18", remoteSurface));
+
+  const existingRelease = keyboardEvent("keyup", "MetaRight", remoteSurface);
+  keyup(existingRelease);
+  assert.equal(existingRelease.state.defaultPrevented, false);
+
+  const repeatedRelease = keyboardEvent("keyup", "MetaRight", remoteSurface);
+  keyup(repeatedRelease);
+  assert.equal(repeatedRelease.state.defaultPrevented, true);
 });
 
 test("bridge uses PiKVM controls and guards clipboard sends", () => {
