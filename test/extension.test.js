@@ -119,7 +119,7 @@ test("manifest is portable and narrowly scoped to PiKVM paths", () => {
   const matches = manifest.content_scripts.flatMap((script) => script.matches);
 
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, "0.4.4");
+  assert.equal(manifest.version, "0.5.0");
   assert.deepEqual(manifest.permissions, ["clipboardRead", "offscreen", "storage"]);
   assert.equal(manifest.background.service_worker, "background.js");
   assert.ok(matches.every((match) => match.includes("/kvm/")));
@@ -249,6 +249,22 @@ test("30-second warning never unlocks or reports cancellation", () => {
   assert.equal(blocked.state.defaultPrevented, true);
 });
 
+test("elapsed-time updates keep the emergency unlock control stable", () => {
+  const harness = runInterceptor();
+  harness.windowListeners.get("keydown")(
+    keyboardEvent("keydown", "F18", harness.remoteSurface),
+  );
+  const panel = harness.elements.get("pikvm-wispr-lock");
+  const unlock = harness.findButton(panel, "Unlock keyboard");
+
+  harness.advance(100);
+
+  assert.equal(
+    harness.findButton(harness.elements.get("pikvm-wispr-lock"), "Unlock keyboard"),
+    unlock,
+  );
+});
+
 test("interceptor shows confirmed counts and unlocks only after completion", () => {
   const harness = runInterceptor();
   const state = harness.documentListeners.get("pikvm-wispr-state");
@@ -315,6 +331,18 @@ test("interceptor unlocks pre-send failures but holds uncertain sends", () => {
     harness.textOf(harness.elements.get("pikvm-wispr-lock")),
     /Sending status is uncertain/,
   );
+});
+
+test("interceptor ignores send states without an accepted private trigger", () => {
+  const harness = runInterceptor();
+  harness.documentListeners.get("pikvm-wispr-state")({
+    detail: { phase: "failed-after-start", total: 10, confirmed: 4 },
+  });
+
+  assert.equal(harness.elements.has("pikvm-wispr-lock"), false);
+  const allowed = keyboardEvent("keydown", "KeyA", harness.remoteSurface);
+  harness.windowListeners.get("keydown")(allowed);
+  assert.equal(allowed.state.defaultPrevented, false);
 });
 
 test("bridge uses PiKVM controls and guards clipboard sends", () => {

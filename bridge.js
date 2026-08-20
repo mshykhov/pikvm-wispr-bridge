@@ -44,7 +44,7 @@
     status.style.cssText = [
       "position:fixed",
       "right:16px",
-      "bottom:16px",
+      `bottom:${document.getElementById("pikvm-wispr-lock") ? "180px" : "16px"}`,
       "z-index:2147483647",
       "padding:10px 14px",
       "border-radius:8px",

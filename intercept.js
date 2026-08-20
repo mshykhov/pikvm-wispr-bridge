@@ -19,6 +19,9 @@
   let startedAt = 0;
   let elapsedTimer = null;
   let longRunning = false;
+  let activePanel = null;
+  let activeTitle = null;
+  let activeDetail = null;
 
   function getPiKvmKeyboardTarget() {
     return document.getElementById("stream-window")
@@ -60,7 +63,7 @@
     startedAt = Date.now();
     elapsedTimer = window.setInterval(() => {
       longRunning = Date.now() - startedAt >= LONG_RUNNING_MS;
-      renderPanel();
+      updatePanelMessage();
     }, 100);
   }
 
@@ -134,6 +137,20 @@
     };
   }
 
+  function panelBackground() {
+    return longRunning || manuallyUnlocked || phase === "failed-safe"
+      ? "#7a4b12"
+      : "#183d31";
+  }
+
+  function updatePanelMessage() {
+    if (!activePanel || !activeTitle || !activeDetail) return;
+    const message = panelMessage();
+    activeTitle.textContent = message.title;
+    activeDetail.textContent = message.detail;
+    activePanel.style.background = panelBackground();
+  }
+
   function requestUnlock() {
     confirmationReturnPhase = phase;
     phase = "unlock-confirmation";
@@ -166,7 +183,7 @@
       "width:min(360px,calc(100vw - 32px))",
       "padding:14px",
       "border-radius:10px",
-      `background:${longRunning || manuallyUnlocked || phase === "failed-safe" ? "#7a4b12" : "#183d31"}`,
+      `background:${panelBackground()}`,
       "color:#fff",
       "font:13px -apple-system,BlinkMacSystemFont,sans-serif",
       "box-shadow:0 6px 24px rgba(0,0,0,.4)",
@@ -200,6 +217,9 @@
       actions.append(makeButton("Unlock keyboard", requestUnlock));
     }
     panel.append(actions);
+    activePanel = panel;
+    activeTitle = title;
+    activeDetail = detail;
     replacePanel(panel);
   }
 
@@ -218,6 +238,9 @@
     uncertainSend = false;
     manuallyUnlocked = false;
     longRunning = false;
+    activePanel = null;
+    activeTitle = null;
+    activeDetail = null;
     document.getElementById(PANEL_ID)?.remove();
   }
 
@@ -241,6 +264,9 @@
       "background:#1f6f43",
       "color:#fff",
     ].join(";");
+    activePanel = panel;
+    activeTitle = null;
+    activeDetail = null;
     replacePanel(panel);
     window.setTimeout(() => panel.remove(), 2500);
   }
@@ -277,6 +303,7 @@
     if (!Number.isSafeInteger(detail.confirmed)
         || detail.confirmed < 0
         || detail.confirmed > detail.total) return;
+    if (pendingOperations === 0 && !uncertainSend) return;
 
     if (detail.phase === "sending" || detail.phase === "progress") {
       phase = "sending";
