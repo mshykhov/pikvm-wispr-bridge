@@ -14,26 +14,89 @@ function runInterceptor() {
   const windowListeners = new Map();
   const documentListeners = new Map();
   const remoteSurface = { id: "stream-window" };
+  const elements = new Map();
+  const timers = new Map();
+  let timerId = 0;
+  let now = 0;
   const controls = new Map([
     ["stream-window", remoteSurface],
     ["hid-pak-text", {}],
     ["hid-pak-button", {}],
   ]);
+
+  function element(tagName = "div") {
+    const listeners = new Map();
+    return {
+      tagName,
+      children: [],
+      dataset: {},
+      hidden: false,
+      id: "",
+      style: {},
+      textContent: "",
+      addEventListener(type, listener) { listeners.set(type, listener); },
+      append(...children) { this.children.push(...children); },
+      click() { listeners.get("click")?.({ preventDefault() {} }); },
+      remove() { if (this.id) elements.delete(this.id); },
+      setAttribute(name, value) { this[name] = value; },
+    };
+  }
+
+  function textOf(node) {
+    return [node.textContent, ...node.children.map(textOf)].join(" ");
+  }
+
+  function findButton(node, label) {
+    if (node.tagName === "button" && node.textContent === label) return node;
+    for (const child of node.children) {
+      const found = findButton(child, label);
+      if (found) return found;
+    }
+    return null;
+  }
+
   const document = {
     addEventListener(type, listener) { documentListeners.set(type, listener); },
-    createElement() { return { append() {}, remove() {}, style: {} }; },
-    documentElement: { append() {} },
-    getElementById(id) { return controls.get(id) || null; },
+    createElement: (tagName) => element(tagName),
+    documentElement: {
+      append(node) { if (node.id) elements.set(node.id, node); },
+    },
+    getElementById(id) { return controls.get(id) || elements.get(id) || null; },
   };
   const window = {
     addEventListener(type, listener) { windowListeners.set(type, listener); },
-    clearInterval() {},
-    clearTimeout() {},
-    setInterval() { return 1; },
-    setTimeout() { return 1; },
+    clearInterval(id) { timers.delete(id); },
+    clearTimeout(id) { timers.delete(id); },
+    setInterval(callback) {
+      timerId += 1;
+      timers.set(timerId, callback);
+      return timerId;
+    },
+    setTimeout(callback) {
+      timerId += 1;
+      timers.set(timerId, callback);
+      return timerId;
+    },
   };
-  vm.runInNewContext(read("intercept.js"), { document, window });
-  return { documentListeners, remoteSurface, windowListeners };
+  function advance(ms) {
+    now += ms;
+    for (const callback of [...timers.values()]) callback();
+  }
+
+  vm.runInNewContext(read("intercept.js"), {
+    Date: { now: () => now },
+    document,
+    window,
+  });
+  return {
+    advance,
+    documentListeners,
+    elements,
+    findButton,
+    remoteSurface,
+    textOf,
+    windowListeners,
+  };
 }
 
 function keyboardEvent(type, code, target) {
@@ -138,6 +201,52 @@ test("interceptor releases keys that PiKVM received before locking", () => {
   const repeatedRelease = keyboardEvent("keyup", "MetaRight", remoteSurface);
   keyup(repeatedRelease);
   assert.equal(repeatedRelease.state.defaultPrevented, true);
+});
+
+test("input lock panel stays visible and requires confirmed manual unlock", () => {
+  const harness = runInterceptor();
+  const trigger = keyboardEvent("keydown", "F18", harness.remoteSurface);
+  harness.windowListeners.get("keydown")(trigger);
+
+  let panel = harness.elements.get("pikvm-wispr-lock");
+  assert.match(harness.textOf(panel), /PiKVM keyboard locked/);
+  harness.findButton(panel, "Unlock keyboard").click();
+  panel = harness.elements.get("pikvm-wispr-lock");
+  assert.match(harness.textOf(panel), /Unlock keyboard\?/);
+
+  harness.findButton(panel, "Keep locked").click();
+  const blocked = keyboardEvent("keydown", "KeyA", harness.remoteSurface);
+  harness.windowListeners.get("keydown")(blocked);
+  assert.equal(blocked.state.defaultPrevented, true);
+
+  panel = harness.elements.get("pikvm-wispr-lock");
+  harness.findButton(panel, "Unlock keyboard").click();
+  panel = harness.elements.get("pikvm-wispr-lock");
+  harness.findButton(panel, "Unlock anyway").click();
+  const allowed = keyboardEvent("keydown", "KeyA", harness.remoteSurface);
+  harness.windowListeners.get("keydown")(allowed);
+  assert.equal(allowed.state.defaultPrevented, false);
+  assert.match(
+    harness.textOf(harness.elements.get("pikvm-wispr-lock")),
+    /Keyboard unlocked manually/,
+  );
+});
+
+test("30-second warning never unlocks or reports cancellation", () => {
+  const harness = runInterceptor();
+  harness.windowListeners.get("keydown")(
+    keyboardEvent("keydown", "F18", harness.remoteSurface),
+  );
+  harness.advance(30000);
+
+  const panel = harness.elements.get("pikvm-wispr-lock");
+  assert.match(harness.textOf(panel), /PiKVM is still sending after 30 seconds/);
+  assert.match(harness.textOf(panel), /Keyboard remains locked/);
+  assert.doesNotMatch(harness.textOf(panel), /cancel/i);
+
+  const blocked = keyboardEvent("keydown", "KeyA", harness.remoteSurface);
+  harness.windowListeners.get("keydown")(blocked);
+  assert.equal(blocked.state.defaultPrevented, true);
 });
 
 test("bridge uses PiKVM controls and guards clipboard sends", () => {
