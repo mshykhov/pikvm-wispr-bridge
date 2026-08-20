@@ -1,8 +1,15 @@
 (() => {
   const CLIPBOARD_MESSAGE_TYPE = "pikvm-wispr-read-clipboard";
+  const STATE_EVENT_TYPE = "pikvm-wispr-state";
+  const STATE_PHASES = new Set([
+    "sending",
+    "progress",
+    "complete",
+    "failed-before-send",
+    "failed-after-start",
+  ]);
   const DUPLICATE_WINDOW_MS = 2000;
   const MAX_TEXT_LENGTH = 20000;
-  const PASTE_TIMEOUT_MS = 30000;
   const DEFAULT_SETTINGS = {
     autoKeymap: true,
   };
@@ -15,6 +22,17 @@
     return new Promise((resolve) => {
       chrome.storage.local.get(DEFAULT_SETTINGS, resolve);
     });
+  }
+
+  function publishState(phase, total = 0, confirmed = 0) {
+    if (!STATE_PHASES.has(phase)) return;
+    const safeTotal = Number.isSafeInteger(total) && total >= 0 ? total : 0;
+    const safeConfirmed = Number.isSafeInteger(confirmed) && confirmed >= 0
+      ? Math.min(confirmed, safeTotal)
+      : 0;
+    document.dispatchEvent(new CustomEvent(STATE_EVENT_TYPE, {
+      detail: { phase, total: safeTotal, confirmed: safeConfirmed },
+    }));
   }
 
   function showStatus(message, isError = false, persistent = false) {
@@ -94,21 +112,17 @@
   }
 
   function waitForPasteCompletion(textarea, sendButton) {
-    return new Promise((resolve, reject) => {
-      const startedAt = Date.now();
+    return new Promise((resolve) => {
       const timer = window.setInterval(() => {
         if (!sendButton.disabled && textarea.value === "") {
           window.clearInterval(timer);
           resolve();
-        } else if (Date.now() - startedAt >= PASTE_TIMEOUT_MS) {
-          window.clearInterval(timer);
-          reject(new Error("PiKVM paste timed out"));
         }
       }, 25);
     });
   }
 
-  async function sendSegment(text, controls) {
+  async function sendSegment(text, controls, onStarted, onConfirmed) {
     const { textarea, sendButton, confirmation } = controls;
     textarea.value = text;
     textarea.dispatchEvent(new Event("input", { bubbles: true }));
@@ -121,20 +135,27 @@
     if (confirmation) confirmation.checked = false;
 
     try {
+      onStarted();
       sendButton.click();
     } finally {
       if (confirmation) confirmation.checked = confirmationWasEnabled;
     }
 
     await waitForPasteCompletion(textarea, sendButton);
+    onConfirmed(text.length);
   }
 
-  async function sendText(text, settings) {
+  async function sendText(text, settings, onStarted, onProgress) {
     const controls = getPiKvmControls();
     const { keymapSelector } = controls;
     const currentKeymap = keymapSelector.value;
     const segments = PiKVMWisprLanguages.splitByKeymap(text, currentKeymap);
     const textKeymaps = new Set(segments.map((segment) => segment.keymap));
+    let confirmedCharacters = 0;
+    const confirmSegment = (length) => {
+      confirmedCharacters += length;
+      onProgress(confirmedCharacters);
+    };
 
     if (!settings.autoKeymap) {
       if (textKeymaps.size > 1) {
@@ -144,7 +165,7 @@
       if (requiredKeymap !== currentKeymap) {
         throw new Error(`Select ${requiredKeymap} in PiKVM or enable Auto keymap`);
       }
-      await sendSegment(text, controls);
+      await sendSegment(text, controls, onStarted, confirmSegment);
       return currentKeymap;
     }
 
@@ -154,13 +175,16 @@
         selectKeymap(keymapSelector, segment.keymap);
         activeKeymap = segment.keymap;
       }
-      await sendSegment(segment.text, controls);
+      await sendSegment(segment.text, controls, onStarted, confirmSegment);
     }
 
     return activeKeymap;
   }
 
   async function sendQueuedText(text) {
+    let sendStarted = false;
+    let normalizedLength = 0;
+    let confirmedLength = 0;
     try {
       if (!text) throw new Error("Flow transcript is empty");
       if (text.length > MAX_TEXT_LENGTH) {
@@ -169,19 +193,33 @@
 
       text = removeLineBreaks(text);
       if (!text.trim()) throw new Error("Flow transcript is empty");
+      normalizedLength = text.length;
 
       const now = Date.now();
       if (text === lastText && now - lastSentAt < DUPLICATE_WINDOW_MS) {
         throw new Error("Duplicate transcript ignored");
       }
 
-      showStatus(`Sending ${text.length} characters...`, false, true);
+      publishState("sending", normalizedLength, 0);
       const settings = await getSettings();
-      const finalKeymap = await sendText(text, settings);
+      await sendText(
+        text,
+        settings,
+        () => { sendStarted = true; },
+        (confirmed) => {
+          confirmedLength = confirmed;
+          publishState("progress", normalizedLength, confirmedLength);
+        },
+      );
       lastText = text;
       lastSentAt = now;
-      showStatus(`Sent ${text.length} characters; PiKVM keymap ${finalKeymap}`);
+      publishState("complete", normalizedLength, normalizedLength);
     } catch (error) {
+      publishState(
+        sendStarted ? "failed-after-start" : "failed-before-send",
+        normalizedLength,
+        confirmedLength,
+      );
       showStatus(error.message || "Could not send transcript", true);
     }
   }
@@ -214,6 +252,7 @@
         }
         handlePaste(response.text);
       } catch (error) {
+        publishState("failed-before-send");
         showStatus(error.message || "Could not read clipboard", true);
       }
     }, 0);

@@ -249,6 +249,74 @@ test("30-second warning never unlocks or reports cancellation", () => {
   assert.equal(blocked.state.defaultPrevented, true);
 });
 
+test("interceptor shows confirmed counts and unlocks only after completion", () => {
+  const harness = runInterceptor();
+  const state = harness.documentListeners.get("pikvm-wispr-state");
+  harness.windowListeners.get("keydown")(
+    keyboardEvent("keydown", "F18", harness.remoteSurface),
+  );
+
+  state({ detail: { phase: "sending", total: 12, confirmed: 0 } });
+  state({ detail: { phase: "progress", total: 12, confirmed: 6 } });
+  assert.match(
+    harness.textOf(harness.elements.get("pikvm-wispr-lock")),
+    /6 of 12 characters confirmed/,
+  );
+
+  state({ detail: { phase: "complete", total: 12, confirmed: 12 } });
+  assert.match(
+    harness.textOf(harness.elements.get("pikvm-wispr-lock")),
+    /Sent 12 characters/,
+  );
+  const allowed = keyboardEvent("keydown", "KeyA", harness.remoteSurface);
+  harness.windowListeners.get("keydown")(allowed);
+  assert.equal(allowed.state.defaultPrevented, false);
+});
+
+test("interceptor keeps one lock across queued sends", () => {
+  const harness = runInterceptor();
+  const state = harness.documentListeners.get("pikvm-wispr-state");
+  const keydown = harness.windowListeners.get("keydown");
+  keydown(keyboardEvent("keydown", "F18", harness.remoteSurface));
+  keydown(keyboardEvent("keydown", "F18", harness.remoteSurface));
+
+  state({ detail: { phase: "complete", total: 5, confirmed: 5 } });
+  const stillBlocked = keyboardEvent("keydown", "KeyA", harness.remoteSurface);
+  keydown(stillBlocked);
+  assert.equal(stillBlocked.state.defaultPrevented, true);
+  assert.match(
+    harness.textOf(harness.elements.get("pikvm-wispr-lock")),
+    /Preparing transcript/,
+  );
+
+  state({ detail: { phase: "complete", total: 6, confirmed: 6 } });
+  const allowed = keyboardEvent("keydown", "KeyA", harness.remoteSurface);
+  keydown(allowed);
+  assert.equal(allowed.state.defaultPrevented, false);
+});
+
+test("interceptor unlocks pre-send failures but holds uncertain sends", () => {
+  const harness = runInterceptor();
+  const state = harness.documentListeners.get("pikvm-wispr-state");
+  const keydown = harness.windowListeners.get("keydown");
+
+  keydown(keyboardEvent("keydown", "F18", harness.remoteSurface));
+  state({ detail: { phase: "failed-before-send", total: 0, confirmed: 0 } });
+  const preSendAllowed = keyboardEvent("keydown", "KeyA", harness.remoteSurface);
+  keydown(preSendAllowed);
+  assert.equal(preSendAllowed.state.defaultPrevented, false);
+
+  keydown(keyboardEvent("keydown", "F18", harness.remoteSurface));
+  state({ detail: { phase: "failed-after-start", total: 10, confirmed: 4 } });
+  const uncertainBlocked = keyboardEvent("keydown", "KeyA", harness.remoteSurface);
+  keydown(uncertainBlocked);
+  assert.equal(uncertainBlocked.state.defaultPrevented, true);
+  assert.match(
+    harness.textOf(harness.elements.get("pikvm-wispr-lock")),
+    /Sending status is uncertain/,
+  );
+});
+
 test("bridge uses PiKVM controls and guards clipboard sends", () => {
   const source = read("bridge.js");
 
@@ -261,9 +329,13 @@ test("bridge uses PiKVM controls and guards clipboard sends", () => {
   assert.match(source, /autoKeymap/);
   assert.match(source, /isPiKvmPageReady/);
   assert.match(source, /pasteQueue/);
-  assert.match(source, /Sending \$\{text\.length\} characters/);
+  assert.match(source, /pikvm-wispr-state/);
+  assert.match(source, /failed-before-send/);
+  assert.match(source, /failed-after-start/);
   assert.match(source, /Extension updated; reload the PiKVM tab/);
   assert.match(source, /Extension context invalidated/);
+  assert.doesNotMatch(source, /PASTE_TIMEOUT_MS|PiKVM paste timed out/);
+  assert.doesNotMatch(source, /Sending \$\{text\.length\} characters/);
   assert.doesNotMatch(source, /if \(sending\) return/);
   assert.match(source, /globalThis\.chrome\?\.runtime/);
   assert.match(source, /runtime\.sendMessage/);
@@ -275,9 +347,10 @@ test("bridge uses PiKVM controls and guards clipboard sends", () => {
   assert.doesNotMatch(source, /navigator\.clipboard|readText|fetch\(|XMLHttpRequest|console\./);
 });
 
-test("bridge replaces transcript line breaks before sending", async () => {
+async function runBridge(transcript) {
   const listeners = new Map();
   const sent = [];
+  const stateEvents = [];
   let status = null;
   let timerId = 0;
   const textarea = {
@@ -304,6 +377,9 @@ test("bridge replaces transcript line breaks before sending", async () => {
     "hid-pak-text": textarea,
   };
   const document = {
+    dispatchEvent(event) {
+      if (event.type === "pikvm-wispr-state") stateEvents.push(event.detail);
+    },
     documentElement: {
       appendChild(element) { status = element; },
     },
@@ -339,7 +415,7 @@ test("bridge replaces transcript line breaks before sending", async () => {
       async sendMessage() {
         return {
           ok: true,
-          text: "first\r\n second\nthird\rfourth\u2028fifth\u2029sixth",
+          text: transcript,
         };
       },
     },
@@ -352,6 +428,12 @@ test("bridge replaces transcript line breaks before sending", async () => {
 
   vm.runInNewContext(read("bridge.js"), {
     chrome,
+    CustomEvent: class CustomEvent {
+      constructor(type, options) {
+        this.type = type;
+        this.detail = options.detail;
+      }
+    },
     document,
     Event: class Event {},
     PiKVMWisprLanguages: languages,
@@ -366,8 +448,42 @@ test("bridge replaces transcript line breaks before sending", async () => {
   });
   await new Promise((resolve) => setImmediate(resolve));
 
-  assert.deepEqual(sent, ["first second third fourth fifth sixth"]);
-  assert.equal(confirmation.checked, true);
+  return {
+    confirmation,
+    sent,
+    stateEvents: JSON.parse(JSON.stringify(stateEvents)),
+    status,
+  };
+}
+
+test("bridge replaces transcript line breaks before sending", async () => {
+  const result = await runBridge(
+    "first\r\n second\nthird\rfourth\u2028fifth\u2029sixth",
+  );
+
+  assert.deepEqual(result.sent, ["first second third fourth fifth sixth"]);
+  assert.equal(result.confirmation.checked, true);
+  assert.deepEqual(result.stateEvents, [
+    { phase: "sending", total: 37, confirmed: 0 },
+    { phase: "progress", total: 37, confirmed: 37 },
+    { phase: "complete", total: 37, confirmed: 37 },
+  ]);
+  assert.doesNotMatch(
+    JSON.stringify(result.stateEvents),
+    /first|second|third|fourth|fifth|sixth/,
+  );
+});
+
+test("bridge reports only confirmed RU and EN segment counts", async () => {
+  const result = await runBridge("hello\nПривет");
+
+  assert.deepEqual(result.sent, ["hello ", "Привет"]);
+  assert.deepEqual(result.stateEvents, [
+    { phase: "sending", total: 12, confirmed: 0 },
+    { phase: "progress", total: 12, confirmed: 6 },
+    { phase: "progress", total: 12, confirmed: 12 },
+    { phase: "complete", total: 12, confirmed: 12 },
+  ]);
 });
 
 test("language splitter preserves text and separates Cyrillic from Latin", () => {

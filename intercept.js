@@ -1,6 +1,7 @@
 (() => {
   const PANEL_ID = "pikvm-wispr-lock";
   const STYLE_ID = "pikvm-wispr-lock-style";
+  const STATE_EVENT_TYPE = "pikvm-wispr-state";
   const LONG_RUNNING_MS = 30000;
   const REMOTE_SURFACE_IDS = new Set([
     "stream-window",
@@ -268,6 +269,57 @@
     if (event.type === "keyup" && forwardedKeys.delete(event.code)) return;
     stopKeyboardEvent(event);
   }
+
+  document.addEventListener(STATE_EVENT_TYPE, (event) => {
+    const detail = event.detail;
+    if (!detail || typeof detail !== "object") return;
+    if (!Number.isSafeInteger(detail.total) || detail.total < 0) return;
+    if (!Number.isSafeInteger(detail.confirmed)
+        || detail.confirmed < 0
+        || detail.confirmed > detail.total) return;
+
+    if (detail.phase === "sending" || detail.phase === "progress") {
+      phase = "sending";
+      totalCharacters = detail.total;
+      confirmedCharacters = detail.confirmed;
+      if (detail.phase === "sending") {
+        longRunning = false;
+        startTimers();
+      }
+      renderPanel();
+      return;
+    }
+    if (detail.phase === "complete") {
+      pendingOperations = Math.max(0, pendingOperations - 1);
+      if (pendingOperations > 0) {
+        renderPreparingState();
+      } else if (uncertainSend) {
+        phase = "failed-safe";
+        renderPanel();
+      } else {
+        showComplete(detail.total);
+      }
+      return;
+    }
+    if (detail.phase === "failed-before-send") {
+      pendingOperations = Math.max(0, pendingOperations - 1);
+      if (pendingOperations > 0) {
+        renderPreparingState();
+      } else if (uncertainSend) {
+        phase = "failed-safe";
+        renderPanel();
+      } else {
+        clearPanelAndUnlock();
+      }
+      return;
+    }
+    if (detail.phase === "failed-after-start") {
+      pendingOperations = Math.max(0, pendingOperations - 1);
+      uncertainSend = true;
+      phase = "failed-safe";
+      renderPanel();
+    }
+  });
 
   window.addEventListener("keydown", handleKeyboardEvent, true);
   window.addEventListener("keyup", handleKeyboardEvent, true);
