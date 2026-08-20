@@ -53,6 +53,11 @@ The installer:
 - reloads Hammerspoon when its command-line helper is available;
 - can be run repeatedly without duplicating configuration.
 
+The first URL check may make macOS request permission for Hammerspoon to control
+the active browser. Enable **System Settings > Privacy & Security > Automation >
+Hammerspoon > your browser**. Without this permission, the helper cannot verify
+the `/kvm/` URL and leaves Flow's generated paste unchanged.
+
 To remove the helper:
 
 ```bash
@@ -71,13 +76,24 @@ offscreen document reads the Mac clipboard only after the private trigger.
 1. Open PiKVM and click the desired field on the target computer.
 2. In PiKVM's **Text** menu, select a keymap matching the active target layout.
 3. Hold the Wispr Flow push-to-talk shortcut, speak, and release it.
-4. A notification in the lower-right corner shows when sending starts and when
-   PiKVM confirms completion.
+4. A panel in the lower-right corner locks the remote PiKVM keyboard, shows the
+   character count and elapsed time, and reports when PiKVM confirms completion.
 
 The extension temporarily bypasses PiKVM's paste confirmation for this action;
 it does not change the saved confirmation preference. Line breaks in a Flow
 transcript are replaced with spaces, so dictation never sends `Enter` to the
 target. Press `Enter` manually after reviewing the complete command.
+
+The progress bar is intentionally indeterminate because stock PiKVM confirms a
+Paste-as-Keys request only after the current segment finishes. Confirmed counts
+are shown between RU/EN segments when available. `Unlock keyboard` is always
+visible while locked and requires `Unlock anyway` confirmation because it does
+not cancel a PiKVM send already in progress. After 30 seconds the panel changes
+to a warning but keeps the keyboard locked and continues waiting for PiKVM.
+
+Mouse input and PiKVM controls remain available. Avoid clicking the remote
+screen while text is being sent because a remote click can change the focused
+field and redirect the rest of the text.
 
 ## Automatic PiKVM keymap selection
 
@@ -127,6 +143,8 @@ The extension:
 - reads clipboard text only after the trusted private trigger on a fully loaded
   PiKVM page;
 - does not log, store, or send transcript text anywhere except the PiKVM page;
+- shares only fixed send phases and integer character counts between its page
+  contexts;
 - stores only the automatic PiKVM keymap toggle;
 - ignores duplicate sends within two seconds;
 - limits a single transcript to 20,000 characters.

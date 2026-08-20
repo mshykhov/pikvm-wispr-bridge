@@ -13,6 +13,11 @@ trigger clipboard access.
 Transcript text is placed into PiKVM's existing Paste-as-Keys control. It is not
 stored by the extension, written to logs, or sent to another service.
 
+The isolated bridge sends the main-world status panel only an allow-listed
+phase and non-negative integer total/confirmed character counts. These status
+events never contain transcript text, error messages, keys, URLs, or host
+information.
+
 The extension stores only whether automatic PiKVM keymap selection is enabled.
 Transcript text is never written to extension storage.
 

@@ -40,3 +40,25 @@ The bridge replaces every transcript line break with a single space before
 using PiKVM Paste-as-Keys. It never sends `Enter` from dictated text. This keeps
 multi-line Flow output from executing a partial command in a terminal; the user
 submits the complete command manually.
+
+## Input lock and send status
+
+After the private `F18` trigger, the extension blocks new `keydown` and `keyup`
+events on PiKVM's remote keyboard surfaces until the queued Paste-as-Keys work
+completes. A release for a key whose press reached PiKVM before the lock is
+allowed through once to prevent a stuck modifier or ordinary key.
+
+The English status panel displays the total character count, elapsed time, and
+an indeterminate progress bar. PiKVM does not expose in-request character
+progress, so the extension reports confirmed characters only after a complete
+RU/EN segment. It does not estimate percentages or split text into artificial
+chunks.
+
+`Unlock keyboard` remains available throughout the lock. `Unlock anyway`
+removes only local keyboard filtering and does not cancel the active PiKVM
+request. The 30-second warning also leaves the keyboard locked and continues to
+observe the real PiKVM completion state.
+
+Mouse events, PiKVM controls, browser shortcuts, and macOS shortcuts are not
+blocked. A remote mouse click can move focus and redirect remaining text, so the
+remote screen should not be clicked during a send.

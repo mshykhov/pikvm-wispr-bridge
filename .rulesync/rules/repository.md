@@ -23,12 +23,15 @@ documentation structure.
   PiKVM `ru` or `en-us` host keymap selector.
 - Do not log, persist, or transmit transcript text outside the authenticated
   PiKVM page. Keep sender URL validation and the 20,000-character limit.
+- Keep send-state handoff limited to allow-listed phases and integer counts.
+  Manual unlock removes local filtering but never claims to cancel PiKVM.
 
 ## Architecture
 
-- `extras/PiKVMWispr.spoon/init.lua` arms after a long `Fn` hold, observes one
-  clipboard change, suppresses Flow's own paste, and emits `F18`.
-- `intercept.js` keeps `F18` away from PiKVM's remote keyboard handler.
+- `extras/PiKVMWispr.spoon/init.lua` identifies Flow-generated `Cmd+V` by its
+  macOS process, suppresses it only on an active PiKVM page, and emits `F18`.
+- `intercept.js` keeps `F18` away from PiKVM and locks remote keyboard events
+  while Paste-as-Keys is active; `bridge.js` owns safe send-state updates.
 - `bridge.js` validates readiness, queues text, selects keymaps, and drives the
   stock PiKVM Paste-as-Keys controls.
 - `background.js` and `offscreen.js` own the permission-gated clipboard read.
