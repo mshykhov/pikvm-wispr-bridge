@@ -86,10 +86,12 @@ target. Press `Enter` manually after reviewing the complete command.
 
 The progress bar is intentionally indeterminate because stock PiKVM confirms a
 Paste-as-Keys request only after the current segment finishes. Confirmed counts
-are shown between RU/EN segments when available. `Unlock keyboard` is always
-visible while locked and requires `Unlock anyway` confirmation because it does
-not cancel a PiKVM send already in progress. After 30 seconds the panel changes
-to a warning but keeps the keyboard locked and continues waiting for PiKVM.
+are shown between RU/EN segments when available. Additional dictations are sent
+in order, and the panel shows `1 transcript queued` or the current queued count
+without replacing the active send status. `Unlock keyboard` is always visible
+while locked and requires `Unlock anyway` confirmation because it does not
+cancel a PiKVM send already in progress. After 30 seconds the panel changes to a
+warning but keeps the keyboard locked and continues waiting for PiKVM.
 
 Mouse input and PiKVM controls remain available. Avoid clicking the remote
 screen while text is being sent because a remote click can change the focused

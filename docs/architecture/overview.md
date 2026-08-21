@@ -36,7 +36,9 @@ to the target.
 6. The content script rejects empty, oversized, or immediate duplicate text,
    then sends queued language segments through PiKVM's Text controls.
 7. The bridge reports only an allow-listed phase, total character count, and
-   confirmed segment count. Completion removes the keyboard lock.
+   confirmed segment count. The controller derives the visible queued transcript
+   count from accepted private triggers. Final completion removes the keyboard
+   lock.
 8. PiKVM maps each segment through its selected host keymap and sends physical
    HID keypresses. The target OS owns the focused field and active layout.
 

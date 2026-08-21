@@ -119,7 +119,7 @@ test("manifest is portable and narrowly scoped to PiKVM paths", () => {
   const matches = manifest.content_scripts.flatMap((script) => script.matches);
 
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, "0.5.0");
+  assert.equal(manifest.version, "0.5.1");
   assert.deepEqual(manifest.permissions, ["clipboardRead", "offscreen", "storage"]);
   assert.equal(manifest.background.service_worker, "background.js");
   assert.ok(matches.every((match) => match.includes("/kvm/")));
@@ -294,18 +294,38 @@ test("interceptor keeps one lock across queued sends", () => {
   const state = harness.documentListeners.get("pikvm-wispr-state");
   const keydown = harness.windowListeners.get("keydown");
   keydown(keyboardEvent("keydown", "F18", harness.remoteSurface));
+  state({ detail: { phase: "sending", total: 12, confirmed: 0 } });
+  state({ detail: { phase: "progress", total: 12, confirmed: 6 } });
   keydown(keyboardEvent("keydown", "F18", harness.remoteSurface));
+  assert.match(
+    harness.textOf(harness.elements.get("pikvm-wispr-lock")),
+    /6 of 12 characters confirmed.*1 transcript queued/,
+  );
+  keydown(keyboardEvent("keydown", "F18", harness.remoteSurface));
+  assert.match(
+    harness.textOf(harness.elements.get("pikvm-wispr-lock")),
+    /6 of 12 characters confirmed.*2 transcripts queued/,
+  );
 
-  state({ detail: { phase: "complete", total: 5, confirmed: 5 } });
+  state({ detail: { phase: "complete", total: 12, confirmed: 12 } });
   const stillBlocked = keyboardEvent("keydown", "KeyA", harness.remoteSurface);
   keydown(stillBlocked);
   assert.equal(stillBlocked.state.defaultPrevented, true);
   assert.match(
     harness.textOf(harness.elements.get("pikvm-wispr-lock")),
-    /Preparing transcript/,
+    /Preparing transcript.*1 transcript queued/,
   );
 
   state({ detail: { phase: "complete", total: 6, confirmed: 6 } });
+  const stillBlockedForLast = keyboardEvent("keydown", "KeyB", harness.remoteSurface);
+  keydown(stillBlockedForLast);
+  assert.equal(stillBlockedForLast.state.defaultPrevented, true);
+  assert.doesNotMatch(
+    harness.textOf(harness.elements.get("pikvm-wispr-lock")),
+    /transcripts? queued/,
+  );
+
+  state({ detail: { phase: "complete", total: 7, confirmed: 7 } });
   const allowed = keyboardEvent("keydown", "KeyA", harness.remoteSurface);
   keydown(allowed);
   assert.equal(allowed.state.defaultPrevented, false);

@@ -108,32 +108,36 @@
 
   function panelMessage() {
     const elapsed = Math.max(0, Date.now() - startedAt) / 1000;
+    const queuedTranscripts = Math.max(0, pendingOperations - 1);
+    const queueStatus = queuedTranscripts > 0
+      ? ` · ${queuedTranscripts} transcript${queuedTranscripts === 1 ? "" : "s"} queued`
+      : "";
     if (phase === "unlock-confirmation") return {
       title: "Unlock keyboard?",
       detail: "PiKVM may still be sending text. Unlocking can mix your keystrokes with the active paste.",
     };
     if (manuallyUnlocked) return {
       title: "Sending continues",
-      detail: "Keyboard unlocked manually",
+      detail: `Keyboard unlocked manually${queueStatus}`,
     };
     if (phase === "failed-safe") return {
       title: "Sending status is uncertain",
-      detail: "Keyboard remains locked",
+      detail: `Keyboard remains locked${queueStatus}`,
     };
     if (longRunning) return {
       title: "PiKVM is still sending after 30 seconds",
-      detail: `Keyboard remains locked · ${elapsed.toFixed(1)}s elapsed`,
+      detail: `Keyboard remains locked · ${elapsed.toFixed(1)}s elapsed${queueStatus}`,
     };
     if (phase === "preparing") return {
       title: "PiKVM keyboard locked",
-      detail: "Preparing transcript…",
+      detail: `Preparing transcript…${queueStatus}`,
     };
     const progress = confirmedCharacters > 0 && confirmedCharacters < totalCharacters
       ? `${confirmedCharacters} of ${totalCharacters} characters confirmed · `
       : "";
     return {
       title: "PiKVM keyboard locked",
-      detail: `${progress}Sending ${totalCharacters} characters · ${elapsed.toFixed(1)}s elapsed`,
+      detail: `${progress}Sending ${totalCharacters} characters · ${elapsed.toFixed(1)}s elapsed${queueStatus}`,
     };
   }
 
@@ -273,9 +277,14 @@
 
   function acceptTrigger(event) {
     if (event.type !== "keydown" || event.repeat || !event.isTrusted) return;
+    const operationAlreadyActive = pendingOperations > 0;
     pendingOperations += 1;
     manuallyUnlocked = false;
-    renderPreparingState();
+    if (operationAlreadyActive && phase !== "idle" && phase !== "complete") {
+      renderPanel();
+    } else {
+      renderPreparingState();
+    }
   }
 
   function handleKeyboardEvent(event) {

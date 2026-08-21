@@ -56,6 +56,10 @@ progress, so the extension reports confirmed characters only after a complete
 RU/EN segment. It does not estimate percentages or split text into artificial
 chunks.
 
+Additional dictations remain in FIFO order while the current transcript is
+sent. The panel preserves the active transcript's progress and displays the
+number of transcripts still queued behind it.
+
 `Unlock keyboard` remains available throughout the lock. `Unlock anyway`
 removes only local keyboard filtering and does not cancel the active PiKVM
 request. The 30-second warning also leaves the keyboard locked and continues to
