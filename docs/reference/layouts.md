@@ -21,7 +21,9 @@ Auto mode splits mixed Cyrillic and Latin text into runs and selects the matchin
 PiKVM `ru` or `en-us` keymap before sending each run.
 
 Auto mode is enabled by default. It changes only the **using a host keymap**
-selector shown in PiKVM's Text panel.
+selector shown in PiKVM's Text panel. The selector is restored to its original
+value after the complete transcript finishes, including when a later segment
+cannot be sent.
 
 The extension never sends `Alt+Shift`, `Win+Space`, or another layout-switch
 shortcut to the target computer. The target layout remains entirely under the

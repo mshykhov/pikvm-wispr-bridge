@@ -170,15 +170,21 @@
     }
 
     let activeKeymap = currentKeymap;
-    for (const segment of segments) {
-      if (segment.keymap !== activeKeymap) {
-        selectKeymap(keymapSelector, segment.keymap);
-        activeKeymap = segment.keymap;
+    try {
+      for (const segment of segments) {
+        if (segment.keymap !== activeKeymap) {
+          selectKeymap(keymapSelector, segment.keymap);
+          activeKeymap = segment.keymap;
+        }
+        await sendSegment(segment.text, controls, onStarted, confirmSegment);
       }
-      await sendSegment(segment.text, controls, onStarted, confirmSegment);
+    } finally {
+      if (keymapSelector.value !== currentKeymap) {
+        selectKeymap(keymapSelector, currentKeymap);
+      }
     }
 
-    return activeKeymap;
+    return currentKeymap;
   }
 
   async function sendQueuedText(text) {

@@ -108,7 +108,8 @@ Setup:
 
 Automatic keymap selection is enabled by default. It changes only PiKVM's
 **using a host keymap** selector. It never sends a layout-switch shortcut to the
-remote computer.
+remote computer. After the complete transcript has been sent, the extension
+restores the PiKVM keymap that was selected before sending.
 
 ## How the macOS handoff works
 

@@ -375,9 +375,10 @@ test("bridge uses PiKVM controls and guards clipboard sends", () => {
   assert.doesNotMatch(source, /navigator\.clipboard|readText|fetch\(|XMLHttpRequest|console\./);
 });
 
-async function runBridge(transcript) {
+async function runBridge(transcript, { failAfterConfirmedSegment = 0 } = {}) {
   const listeners = new Map();
   const sent = [];
+  const selectedKeymaps = [];
   const stateEvents = [];
   let status = null;
   let timerId = 0;
@@ -396,7 +397,7 @@ async function runBridge(transcript) {
   const keymapSelector = {
     value: "en-us",
     options: [{ value: "en-us" }, { value: "ru" }],
-    dispatchEvent() {},
+    dispatchEvent() { selectedKeymaps.push(this.value); },
   };
   const controls = {
     "hid-pak-ask-switch": confirmation,
@@ -428,7 +429,10 @@ async function runBridge(transcript) {
     addEventListener(type, listener) { listeners.set(type, listener); },
     clearInterval() {},
     setInterval(callback) {
-      queueMicrotask(callback);
+      queueMicrotask(() => {
+        callback();
+        if (sent.length === failAfterConfirmedSegment) sendButton.disabled = true;
+      });
       timerId += 1;
       return timerId;
     },
@@ -478,6 +482,8 @@ async function runBridge(transcript) {
 
   return {
     confirmation,
+    keymap: keymapSelector.value,
+    selectedKeymaps,
     sent,
     stateEvents: JSON.parse(JSON.stringify(stateEvents)),
     status,
@@ -506,12 +512,29 @@ test("bridge reports only confirmed RU and EN segment counts", async () => {
   const result = await runBridge("hello\nПривет");
 
   assert.deepEqual(result.sent, ["hello ", "Привет"]);
+  assert.deepEqual(result.selectedKeymaps, ["ru", "en-us"]);
+  assert.equal(result.keymap, "en-us");
   assert.deepEqual(result.stateEvents, [
     { phase: "sending", total: 12, confirmed: 0 },
     { phase: "progress", total: 12, confirmed: 6 },
     { phase: "progress", total: 12, confirmed: 12 },
     { phase: "complete", total: 12, confirmed: 12 },
   ]);
+});
+
+test("bridge restores the original PiKVM keymap after a later segment fails", async () => {
+  const result = await runBridge("Привет hello пока", {
+    failAfterConfirmedSegment: 2,
+  });
+
+  assert.deepEqual(result.sent, ["Привет ", "hello "]);
+  assert.deepEqual(result.selectedKeymaps, ["ru", "en-us", "ru", "en-us"]);
+  assert.equal(result.keymap, "en-us");
+  assert.deepEqual(result.stateEvents.at(-1), {
+    phase: "failed-after-start",
+    total: 17,
+    confirmed: 13,
+  });
 });
 
 test("language splitter preserves text and separates Cyrillic from Latin", () => {
